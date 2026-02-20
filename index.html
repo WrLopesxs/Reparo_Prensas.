@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toyota Quality Control - Prensas</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        fontFamily: { sans: ['Inter', 'sans-serif'] },
+        extend: {
+          colors: {
+            toyota: { red: '#EB0A1E', black: '#000000', dark: '#2D2D2D', gray: '#F4F4F4' },
+            turn1: { bg: '#eff6ff', text: '#1e40af' },
+            turn2: { bg: '#f0fdf4', text: '#166534' },
+            turn3: { bg: '#fff7ed', text: '#9a3412' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="h-full flex flex-col text-gray-800 dark:text-gray-100 bg-gray-50 dark:bg-gray-950">
+  
+  <!-- Header -->
+  <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm z-50 flex-none">
+    <div class="h-1 bg-toyota-red w-full"></div>
+
+    <!-- CONEXÃO -->
+    <div id="conn-banner" class="hidden">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="mt-3 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 px-4 py-3 flex items-start gap-3">
+          <div class="mt-0.5">
+            <i class="ph-fill ph-warning-circle text-red-600 text-xl"></i>
+          </div>
+          <div class="flex-1">
+            <p class="text-sm font-extrabold text-red-700 dark:text-red-300" id="conn-banner-title">Falha ao carregar dados</p>
+            <p class="text-xs text-red-700/90 dark:text-red-200/80 mt-1" id="conn-banner-msg">
+              Verifique permissões da planilha e conexão com a internet.
+            </p>
+            <p class="text-[10px] text-red-700/80 dark:text-red-200/70 mt-1 font-mono" id="conn-banner-tech"></p>
+          </div>
+          <button id="conn-banner-close" class="text-red-700 dark:text-red-200 hover:opacity-80">
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🚨 NOVO: ALERTA ÁREA REPARO -->
+    <div id="area-banner" class="hidden">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div id="area-banner-box"
+          class="mt-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 flex items-start gap-3">
+
+          <div class="mt-0.5">
+            <span id="area-banner-icon" class="text-yellow-600 text-xl">⚠️</span>
+          </div>
+
+          <div class="flex-1">
+            <p id="area-banner-title"
+              class="text-sm font-extrabold text-yellow-800">
+              Área do reparo próxima do limite
+            </p>
+
+            <p id="area-banner-msg"
+              class="text-xs text-yellow-700 mt-1">
+              0 / 84 m² utilizados
+            </p>
+          </div>
+
+          <button id="area-banner-close"
+            class="text-yellow-700 hover:text-red-600">
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center gap-4">
+          <div class="bg-toyota-red text-white font-black px-3 py-1 text-xl tracking-tighter rounded shadow-sm">TOYOTA</div>
+          <div class="hidden md:block border-l border-gray-300 dark:border-gray-700 pl-4">
+            <h1 class="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Reparo Prensas</h1>
+            <p class="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Dashboard de Monitoramento </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Versão do sistema -->
+    
+
+          <button id="btn-refresh-now"
+            class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
+            <i class="ph-bold ph-arrows-clockwise"></i>
+            <span id="btn-refresh-text">Atualizar agora</span>
+          </button>
+
+          <button id="btn-open-sheet"
+            class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
+            <i class="ph-bold ph-google-logo"></i>
+            Abrir Planilha
+          </button>
+
+          <button id="btn-manual"
+            class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
+            <i class="ph-bold ph-question"></i>
+            Ajuda
+          </button>
+
+          <button id="btn-theme"
+            class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
+            <i id="theme-ico" class="ph-bold ph-moon"></i>
+            <span id="theme-txt">Escuro</span>
+          </button>
+
+          <div class="text-right hidden sm:block">
+            <div class="flex items-center gap-2 justify-end">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              <span class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Live</span>
+            </div>
+            <!-- Data/hora completa + fonte -->
+            <p id="last-update-txt" class="text-[10px] font-mono text-gray-400">Atualizando...</p>
+            <p id="data-source-info" class="text-[8px] text-gray-500 dark:text-gray-500">Fonte: Google Sheets</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="w-full bg-gray-100 dark:bg-gray-800 h-[3px]">
+      <div id="progress-bar" class="timer-line w-0"></div>
+    </div>
+  </header>
+
+  <main class="flex-1 overflow-hidden relative">
+    <!-- MENU -->
+    <div id="screen-menu" class="absolute inset-0 overflow-y-auto p-6 flex flex-col items-center justify-center transition-opacity duration-300">
+      <div class="text-center mb-6">
+        <h2 class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Selecione O Projeto que Deseja visualizar  </h2>
+        <p class="text-gray-500 dark:text-gray-400">Escolha um Part Number ou visualize o panorama geral.</p>
+      </div>
+
+      <div class="mb-8 w-full max-w-3xl">
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded-full bg-red-50 dark:bg-gray-800 flex items-center justify-center">
+              <i class="ph-fill ph-warning-circle text-xl text-toyota-red"></i>
+            </div>
+            <div>
+              <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Pendências</p>
+              <div class="flex flex-col gap-0.5">
+                <p class="text-base font-extrabold text-gray-800 dark:text-gray-100">
+                  Saldo (checagem): <span id="menu-saldo-total" class="text-toyota-red">—</span>
+                </p>
+                <p class="text-base font-extrabold text-gray-800 dark:text-gray-100">
+                  Saldo defeito: <span id="menu-saldodefeito-total" class="text-yellow-600">—</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-left sm:text-right flex flex-col gap-2">
+            <div>
+              <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Período</p>
+              <!-- Dados do período também no menu -->
+              <p id="menu-range-total" class="text-sm font-semibold text-gray-600 dark:text-gray-300">Carregando período...</p>
+              <p id="menu-range-details" class="text-[10px] text-gray-500 dark:text-gray-400">min: -- | max: --</p>
+            </div>
+
+            <div class="flex sm:justify-end">
+              <button onclick="openMissingCheckScreen()"
+                class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
+                <i class="ph-bold ph-chart-bar"></i>
+                Ver gráfico (Saldo checagem)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl w-full">
+        <div onclick="selectPN('GERAL')" class="pn-card bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm cursor-pointer group flex flex-col items-center justify-center h-48 border border-gray-100 dark:border-gray-800">
+          <div class="bg-gray-100 dark:bg-gray-800 p-4 rounded-full mb-4 group-hover:bg-gray-800 group-hover:text-white transition-colors">
+            <i class="ph-fill ph-squares-four text-3xl text-gray-600 dark:text-gray-200 group-hover:text-white"></i>
+          </div>
+          <h3 class="font-bold text-lg text-gray-800 dark:text-gray-100">VISÃO GERAL</h3>
+          <p class="text-xs text-gray-400 mt-1">Todos os PNs</p>
+        </div>
+
+        <div onclick="selectPN(['740B'])" class="pn-card bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm cursor-pointer group flex flex-col items-center justify-center h-48 border border-gray-100 dark:border-gray-800">
+          <div class="bg-red-50 dark:bg-gray-800 p-4 rounded-full mb-4 group-hover:bg-toyota-red group-hover:text-white transition-colors">
+            <i class="ph-fill ph-engine text-3xl text-toyota-red group-hover:text-white"></i>
+          </div>
+          <h3 class="font-bold text-xl text-gray-800 dark:text-gray-100">740B</h3>
+          <p class="text-xs text-gray-400 mt-1"></p>
+        </div>
+
+        <div onclick="selectPN(['D90B'])" class="pn-card bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm cursor-pointer group flex flex-col items-center justify-center h-48 border border-gray-100 dark:border-gray-800">
+          <div class="bg-red-50 dark:bg-gray-800 p-4 rounded-full mb-4 group-hover:bg-toyota-red group-hover:text-white transition-colors">
+            <i class="ph-fill ph-wrench text-3xl text-toyota-red group-hover:text-white"></i>
+          </div>
+          <h3 class="font-bold text-xl text-gray-800 dark:text-gray-100">D90B</h3>
+          <p class="text-xs text-gray-400 mt-1"></p>
+        </div>
+
+        <div onclick="selectPN(['230B', '231B'])" class="pn-card bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm cursor-pointer group flex flex-col items-center justify-center h-48 border border-gray-100 dark:border-gray-800">
+          <div class="bg-blue-50 dark:bg-gray-800 p-4 rounded-full mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+            <i class="ph-fill ph-stack text-3xl text-blue-600 group-hover:text-white"></i>
+          </div>
+          <h3 class="font-bold text-xl text-gray-800 dark:text-gray-100">230B / 231B</h3>
+          <p class="text-xs text-gray-400 mt-1"></p>
+        </div>
+
+        <div onclick="selectPN(['860L', '861L', '360B'])" class="pn-card bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm cursor-pointer group flex flex-col items-center justify-center h-48 border border-gray-100 dark:border-gray-800">
+          <div class="bg-orange-50 dark:bg-gray-800 p-4 rounded-full mb-4 group-hover:bg-orange-600 group-hover:text-white transition-colors">
+            <i class="ph-fill ph-package text-3xl text-orange-600 group-hover:text-white"></i>
+          </div>
+          <h3 class="font-bold text-lg text-gray-800 dark:text-gray-100 text-center">860L / 861L <br> 360B</h3>
+          <p class="text-xs text-gray-400 mt-1"></p>
+        </div>
+      </div>
+
+      <!-- Status de conexão no rodapé -->
+      <div class="mt-10 text-center">
+        <p class="text-xs text-gray-400 flex items-center justify-center gap-2">
+          <span class="inline-flex items-center gap-1">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" id="conn-status-pulse"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500" id="conn-status-dot"></span>
+            </span>
+            <span id="conn-status-text">Online</span>
+          </span>
+          • 
+          Sistema conectado à base de dados da Qualidade
+        </p>
+      </div>
+    </div>
+
+    <!-- TELA: FALTA CHECAR -->
+    <div id="screen-missingcheck" class="hidden absolute inset-0 flex flex-col h-full">
+      <div class="bg-white dark:bg-gray-900 px-6 py-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shadow-sm flex-none">
+        <div class="flex items-center gap-4">
+          <button onclick="backToMenuFromMissingCheck()" class="flex items-center gap-2 text-xs font-bold text-gray-500 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors">
+            <i class="ph-bold ph-arrow-left"></i> VOLTAR
+          </button>
+          <div class="h-6 w-px bg-gray-300 dark:bg-gray-700"></div>
+          <div>
+            <h2 class="text-lg font-bold text-gray-800 dark:text-gray-100 leading-tight">Saldo (checagem) por Part Number</h2>
+            <p class="text-[10px] text-gray-500 uppercase tracking-wide">Somente itens com Saldo &gt; 0</p>
+          </div>
+        </div>
+
+        <div class="hidden sm:flex items-center gap-2">
+          <span class="text-[10px] font-bold bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-200" id="missingcheck-total">0 peças</span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div class="bg-white dark:bg-gray-900 p-5 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
+          <div class="flex items-center justify-between gap-4 mb-3">
+            <h4 class="font-bold text-gray-700 dark:text-gray-100 flex items-center gap-2 text-sm">
+              <i class="ph-bold ph-chart-bar text-toyota-red"></i> Gráfico (PN + Saldo)
+            </h4>
+
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ordenar</span>
+              <select id="missingcheck-sort" class="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-red-200">
+                <option value="oldest" selected>Mais antigo → mais atual</option>
+                <option value="newest">Mais atual → mais antigo</option>
+              </select>
+            </div>
+          </div>
+
+          <p class="text-[11px] text-gray-400 mb-3">
+            Passe o mouse: mostra o período (Data Produção min e max) daquele PN.
+          </p>
+
+          <div class="h-[520px]">
+            <canvas id="chartMissingCheck"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="screen-dashboard" class="hidden absolute inset-0 flex flex-col h-full">
+      <div class="bg-white dark:bg-gray-900 px-6 py-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shadow-sm flex-none">
+        <div class="flex items-center gap-4">
+          <button onclick="backToMenu()" class="flex items-center gap-2 text-xs font-bold text-gray-500 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors">
+            <i class="ph-bold ph-arrow-left"></i> VOLTAR
+          </button>
+          <div class="h-6 w-px bg-gray-300 dark:bg-gray-700"></div>
+          <div>
+            <h2 id="dash-title" class="text-lg font-bold text-gray-800 dark:text-gray-100 leading-tight">Visão Geral</h2>
+            <p id="dash-subtitle" class="text-[10px] text-gray-500 uppercase tracking-wide">Monitoramento em Tempo Real</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+        <!-- SEÇÃO: BUSCA + FILTROS RÁPIDOS -->
+        <div class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg shadow-sm p-4 mb-4">
+          <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <!-- Campo de busca -->
+            <div class="flex-1">
+              <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-300 uppercase mb-1">
+                <i class="ph-bold ph-magnifying-glass mr-1"></i> Buscar: PN / Die / Defeito / Quem reparou
+              </label>
+              <div class="relative">
+                <input type="text" id="quick-search" 
+                  class="w-full px-4 py-2 pl-10 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-red-200"
+                  placeholder="Digite para buscar...">
+                <i class="ph-bold ph-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+              </div>
+            </div>
+
+            <!-- Filtros rápidos -->
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                <span class="text-[10px] font-bold text-gray-500 uppercase">Saldo</span>
+                <label class="flex items-center gap-1 text-xs">
+                  <input type="checkbox" id="filter-saldo" class="rounded text-toyota-red focus:ring-red-200"> >0
+                </label>
+              </div>
+
+              <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                <span class="text-[10px] font-bold text-gray-500 uppercase">Saldo Def</span>
+                <label class="flex items-center gap-1 text-xs">
+                  <input type="checkbox" id="filter-saldodef" class="rounded text-yellow-600 focus:ring-yellow-200"> >0
+                </label>
+              </div>
+
+              <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                <span class="text-[10px] font-bold text-gray-500 uppercase">Scrap</span>
+                <label class="flex items-center gap-1 text-xs">
+                  <input type="checkbox" id="filter-scrap" class="rounded text-red-600 focus:ring-red-200"> >0
+                </label>
+              </div>
+
+              <!-- Ordenação rápida -->
+              <select id="quick-sort" class="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-red-200 min-w-[160px]">
+                <option value="">Ordenar por...</option>
+                <option value="saldodef_desc">🔴 Maior Saldo Defeito</option>
+                <option value="date_desc">📅 Mais recente</option>
+                <option value="date_asc">📅 Mais antigo</option>
+              </select>
+
+              <button id="clear-filters" class="text-xs text-gray-500 hover:text-toyota-red px-2 py-1">
+                <i class="ph-bold ph-x-circle"></i> Limpar
+              </button>
+            </div>
+          </div>
+
+          <!-- Indicador de filtros ativos -->
+          <div id="active-filters" class="hidden mt-2 flex items-center gap-2 text-[10px]">
+            <span class="font-bold text-gray-400">Filtros ativos:</span>
+            <span id="active-filters-list" class="flex flex-wrap gap-1"></span>
+          </div>
+        </div>
+
+        <!-- FILTRO (Dia / Mês / Ano) -->
+        <div class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg shadow-sm p-4 mb-4">
+          <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div>
+              <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Filtro do Total Checado</p>
+              <p class="text-sm font-semibold text-gray-700 dark:text-gray-200">Escolha Dia, Mês e Ano (base: Data Produção)</p>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-300 uppercase">Dia</label>
+                <select id="flt-day" class="mt-1 text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-300 uppercase">Mês</label>
+                <select id="flt-month" class="mt-1 text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-300 uppercase">Ano</label>
+                <select id="flt-year" class="mt-1 text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+
+              <button id="flt-clear"
+                class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 transition">
+                <i class="ph-bold ph-eraser"></i> Limpar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPIS CORRIGIDOS: Metas nos lugares certos -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <!-- Card 1: Total Checado (SEM META) -->
+          <div class="kpi-card p-5 relative">
+            <p class="kpi-label">Total Checado</p>
+            <h3 class="kpi-value" id="kpi-checked">0</h3>
+            <p class="kpi-hint" id="kpi-checked-hint">Filtro: Todos</p>
+            <!-- META REMOVIDA DAQUI -->
+          </div>
+
+          <!-- Card 2: Saldo Defeito (COM META) -->
+          <div class="kpi-card p-5 relative">
+            <p class="kpi-label">Saldo Defeito</p>
+            <h3 class="kpi-value" style="color: #FFB800;" id="kpi-defects">0</h3>
+            
+ 
+            
+            <!-- Alerta visual se > meta -->
+            <div id="alert-defects" class="hidden absolute top-2 right-16">
+              <span class="flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Card 3: Reparados (SEM META, mas com %) -->
+          <div class="kpi-card p-5">
+            <p class="kpi-label">Reparados</p>
+            <h3 class="kpi-value" style="color: #00A1E0;" id="kpi-repairs">0</h3>
+            <!-- % retrabalho -->
+            <p class="text-[9px] text-gray-400 mt-1" id="pct-retrabalho">0% retrabalho</p>
+          </div>
+
+          <!-- Card 4: Scrap (COM META) -->
+          <div class="kpi-card p-5 relative">
+            <p class="kpi-label">Scrap</p>
+            <h3 class="kpi-value" style="color: #EB0A1E;" id="kpi-scrap">0</h3>
+            
+ 
+            
+            <!-- % scrap -->
+            <p class="text-[9px] text-gray-400 mt-1" id="pct-scrap">0% scrap</p>
+            
+            <!-- Alerta visual se > meta -->
+            <div id="alert-scrap" class="hidden absolute top-2 right-16">
+              <span class="flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TOP DEFEITOS -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+          <div class="lg:col-span-1 bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="font-bold text-sm text-gray-700 dark:text-gray-100">🏆 Top 1 Defeito</h4>
+              <span class="text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full" id="top1-defeito-periodo">hoje</span>
+            </div>
+            <div id="top1-defeito-content" class="text-center py-2">
+              <p class="text-xs text-gray-500">Carregando...</p>
+            </div>
+          </div>
+
+          <div class="lg:col-span-3 bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="font-bold text-sm text-gray-700 dark:text-gray-100">📊 Top 3 PNs Críticos</h4>
+              <span class="text-[10px] text-gray-400">base: Saldo Defeito</span>
+            </div>
+            <div id="top3-pns-content" class="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div class="text-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                <p class="text-xs text-gray-500">Carregando...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div class="lg:col-span-2 bg-white dark:bg-gray-900 p-5 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
+            <div class="chart-title">
+              <i class="ph-bold ph-chart-bar"></i>
+              Pareto de Defeitos
+            </div>
+            <div class="h-60"><canvas id="chartPareto"></canvas></div>
+          </div>
+
+          <div class="bg-white dark:bg-gray-900 p-5 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
+            <div class="chart-title">
+              <i class="ph-bold ph-chart-pie-slice"></i>
+              Status Geral
+            </div>
+            <div class="h-60 relative"><canvas id="chartStatus"></canvas></div>
+            <p class="mt-2 text-[11px] text-gray-400 text-center">Saldo (checagem) vs Saldo Defeito</p>
+          </div>
+        </div>
+
+        <!-- TABELA -->
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm overflow-hidden">
+          <div class="px-5 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-800 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+            <div class="flex items-center justify-between md:justify-start gap-3">
+              <h4 class="font-bold text-gray-700 dark:text-gray-100 text-sm flex items-center gap-2">
+                <i class="ph-bold ph-table"></i> Detalhamento por Turno
+                <!-- Tooltip informativo -->
+                <span class="group relative">
+                  <i class="ph-bold ph-info text-gray-400 hover:text-gray-600 cursor-help"></i>
+                  <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-50">
+                    Dados em tempo real da produção
+                  </span>
+                </span>
+              </h4>
+              <span class="text-[10px] font-bold bg-white dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-200" id="table-count">0 Reg</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 justify-between md:justify-end">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Linhas</span>
+                <select id="tbl-page-size" class="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-900">
+                  <option value="50">50</option>
+                  <option value="100" selected>100</option>
+                  <option value="200">200</option>
+                </select>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button id="tbl-prev"
+                  class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 transition">
+                  <i class="ph-bold ph-caret-left"></i> Anterior
+                </button>
+
+                <span class="text-[10px] font-bold bg-white dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-200" id="tbl-page-info">
+                  Página 1/1
+                </span>
+
+                <button id="tbl-next"
+                  class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 transition">
+                  Próxima <i class="ph-bold ph-caret-right"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto" style="max-height: 520px;">
+            <table class="w-full text-xs text-left whitespace-nowrap">
+              <thead class="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-200 font-semibold uppercase tracking-wider sticky-header">
+                <tr>
+                  <th colspan="6" class="px-4 py-2 border-b border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 sticky-header text-center font-bold text-gray-800 dark:text-gray-100">Geral</th>
+                  <th colspan="4" class="px-4 py-2 border-b border-blue-200 dark:border-gray-700 bg-blue-50 dark:bg-gray-800 text-center text-blue-800 dark:text-blue-300 font-bold">1º Turno</th>
+                  <th colspan="4" class="px-4 py-2 border-b border-green-200 dark:border-gray-700 bg-green-50 dark:bg-gray-800 text-center text-green-800 dark:text-green-300 font-bold">2º Turno</th>
+                  <th colspan="4" class="px-4 py-2 border-b border-orange-200 dark:border-gray-700 bg-orange-50 dark:bg-gray-800 text-center text-orange-800 dark:text-orange-300 font-bold">3º Turno</th>
+                  <th colspan="4" class="px-4 py-2 border-b border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-center font-bold text-gray-800 dark:text-gray-100">Final</th>
+                </tr>
+
+                <tr class="bg-gray-50 dark:bg-gray-900">
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800">Data Produção</th>
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center">Turno</th>
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center">Die Number</th>
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 sticky-header sticky-bg shadow-sm font-bold text-gray-700 dark:text-gray-100">Part Number</th>
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center">Qtd p/checar</th>
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800">Tipo de Defeito</th>
+
+                  <th class="px-2 py-3 bg-blue-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-blue-800 dark:text-blue-300">Checado 1°T</th>
+                  <th class="px-2 py-3 bg-blue-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-blue-800 dark:text-blue-300">Reparado 1°T</th>
+                  <th class="px-2 py-3 bg-blue-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-blue-800 dark:text-blue-300 font-bold">Scrap 1°T</th>
+                  <th class="px-2 py-3 bg-blue-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-blue-800 dark:text-blue-300">Quem Reparou? 1ºT</th>
+
+                  <th class="px-2 py-3 bg-green-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-green-800 dark:text-green-300">Checado 2°T</th>
+                  <th class="px-2 py-3 bg-green-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-green-800 dark:text-green-300">Reparado 2°T</th>
+                  <th class="px-2 py-3 bg-green-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-green-800 dark:text-green-300 font-bold">Scrap 2°T</th>
+                  <th class="px-2 py-3 bg-green-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-green-800 dark:text-green-300">Quem Reparou? 2ºT</th>
+
+                  <th class="px-2 py-3 bg-orange-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-orange-800 dark:text-orange-300">Checado 3°T</th>
+                  <th class="px-2 py-3 bg-orange-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-orange-800 dark:text-orange-300">Reparado 3°T</th>
+                  <th class="px-2 py-3 bg-orange-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-orange-800 dark:text-orange-300 font-bold">Scrap 3°T</th>
+                  <th class="px-2 py-3 bg-orange-50/50 dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center text-orange-800 dark:text-orange-300">Quem Reparou? 3ºT</th>
+
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center font-bold">Quantidade Scrap</th>
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 text-center font-bold">A Checar</th>
+                  <th class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-center font-bold">Quantidade de Defeito</th>
+                </tr>
+              </thead>
+
+              <tbody id="table-body" class="divide-y divide-gray-100 dark:divide-gray-800 text-gray-600 dark:text-gray-200 font-medium bg-white dark:bg-gray-900"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>    
+    </div>
+
+    <!-- DETALHE DO DEFEITO -->
+    <div id="screen-defect" class="hidden absolute inset-0 flex flex-col h-full">
+      <div class="bg-white dark:bg-gray-900 px-6 py-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shadow-sm flex-none">
+        <div class="flex items-center gap-4">
+          <button onclick="backToDashboardFromDefect()" class="flex items-center gap-2 text-xs font-bold text-gray-500 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors">
+            <i class="ph-bold ph-arrow-left"></i> VOLTAR
+          </button>
+          <div class="h-6 w-px bg-gray-300 dark:bg-gray-700"></div>
+          <div>
+            <h2 id="defect-title" class="text-lg font-bold text-gray-800 dark:text-gray-100 leading-tight">Defeito</h2>
+            <p id="defect-subtitle" class="text-[10px] text-gray-500 uppercase tracking-wide">Pareto por Part Number (base: Saldo Defeito)</p>
+          </div>
+        </div>
+
+        <div class="hidden sm:flex items-center gap-2">
+          <span class="text-[10px] font-bold bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-200" id="defect-total">0 peças</span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div class="bg-white dark:bg-gray-900 p-5 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
+          <div class="flex items-center justify-between mb-3 gap-4">
+            <h4 class="font-bold text-gray-700 dark:text-gray-100 flex items-center gap-2 text-sm">
+              <i class="ph-bold ph-chart-bar text-toyota-red"></i> Pareto por PN (Top + Outros)
+            </h4>
+            <span class="text-[10px] text-gray-400 font-semibold">Barras = Qtde | Linha = % acumulado</span>
+          </div>
+
+          <div class="h-[420px]">
+            <canvas id="chartDefectByPN"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL LOGIN (sem credenciais hardcoded) -->
+    <div id="login-modal" class="hidden absolute inset-0 bg-black/60 z-[999] items-center justify-center p-4">
+      <div class="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-extrabold text-gray-800 dark:text-gray-100">Acesso à Planilha</h3>
+          <button id="login-close" onclick="closeLoginModal()" class="text-gray-500 hover:text-toyota-red"><i class="ph-bold ph-x"></i></button>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Autenticação via Google Workspace (SSO)
+        </p>
+
+        <div class="mt-4 space-y-3">
+          <button id="login-google"
+            class="w-full inline-flex items-center justify-center gap-2 text-xs font-black text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 px-3 py-3 rounded-lg transition">
+            <i class="ph-bold ph-google-logo text-red-500"></i>
+            Entrar com Google
+          </button>
+
+          <p id="login-err" class="hidden text-xs font-bold text-red-600"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tooltip global para explicações -->
+    <div id="global-tooltip" class="hidden fixed z-[9999] bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-lg max-w-[200px]"></div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
