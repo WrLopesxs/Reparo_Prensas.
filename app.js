@@ -1669,7 +1669,7 @@ VERSION: 'v1.6.0',
               <thead class="bg-gray-100 dark:bg-gray-800">
                 <tr>
                   <th class="px-3 py-2 text-left">PN</th>
-                  <th class="px-3 py-2 text-right">Saldo</th>
+                  <th class="px-3 py-2 text-right">Quantidade</th>
                   <th class="px-3 py-2 text-right">Área/Pallet</th>
                   <th class="px-3 py-2 text-right">Empilha</th>
                   <th class="px-3 py-2 text-right">Peças/Pallet</th>
@@ -2783,4 +2783,5 @@ window.openMissingCheckScreen = () => ToyotaQC.openMissingCheckScreen();
 window.backToMenuFromMissingCheck = () => ToyotaQC.backToMenuFromMissingCheck();
 window.closeLoginModal = () => ToyotaQC.closeLoginModal();
 window.closeAreaModal = () => ToyotaQC.closeAreaModal();
+
 window.closeBackupModal = () => ToyotaQC.closeBackupModal();
