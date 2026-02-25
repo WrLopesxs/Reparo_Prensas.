@@ -3,14 +3,14 @@ const ToyotaQC = (function() {
 
   // ==================== CONFIGURAÇÕES ====================
   const CONFIG = {
-  SHEET_ID: '1dlq0-jXBSZnIpWPsBArXDH8gsMUoAR0-xMfQewGllQ8',
-GID: '1157823394',
-UPDATE_INTERVAL: 600,
-CACHE_TIME: 300000,
-TOP_PNS: 15,
-MANUAL_COOLDOWN: 60,
-SHEET_OPEN_URL: 'https://docs.google.com/spreadsheets/d/1dlq0-jXBSZnIpWPsBArXDH8gsMUoAR0-xMfQewGllQ8/edit?gid=1157823394#gid=1157823394',
-VERSION: 'v1.6.0',
+    SHEET_ID: '1y8kcWOCFCXeHHtC_MFHBD2M5zYasY6A8K4MW_Qqo3V0',
+  GID: '914910661',
+  UPDATE_INTERVAL: 600,
+  CACHE_TIME: 300000,
+  TOP_PNS: 15,
+  MANUAL_COOLDOWN: 60,
+  SHEET_OPEN_URL: 'https://docs.google.com/spreadsheets/d/1y8kcWOCFCXeHHtC_MFHBD2M5zYasY6A8K4MW_Qqo3V0/edit?gid=914910661#gid=914910661',
+  VERSION: 'v1.6.0',
     // Limite para área do reparo
     AREA_LIMIT: 84, // m²
     
@@ -973,64 +973,75 @@ VERSION: 'v1.6.0',
     },
     
     // Função para calcular área do reparo e salvar detalhes
-    computeRepairArea: (data) => {
-      let totalArea = 0;
-      let linhasProcessadas = 0;
-      let items = [];
+  computeRepairArea: (data) => {
+  let totalArea = 0;
+  let linhasProcessadas = 0;
+  let items = [];
 
-      for (const row of data) {
-        // Só considera linhas com saldo pendente
-        const saldo = Utils.int(row[COL.saldo]);
-        if (saldo <= 0) continue;
+  for (const row of data) {
+    // ✅ AGORA: considerar APENAS saldo (checagem)
+    const saldo = Utils.int(row[COL.saldo]);
 
-        const pn = Utils.txt(row[COL.part]);
-        
-        // Converte os valores
-        let areaPallet = Utils.float(row[COL.areaPallet]);
-        let empilha = Utils.int(row[COL.empilhaMax]);
-        let pecasPorPallet = Utils.int(row[COL.pecasPorPallet]);
-        
-        // Se não encontrar, usa valores padrão
-        if (!empilha || empilha <= 0) empilha = 1;
-        if (!pecasPorPallet || pecasPorPallet <= 0) pecasPorPallet = 1;
+    // Só entra no "botão da área" quem tiver saldo > 0
+    if (saldo <= 0) continue;
 
-        // Valida se tem área do pallet
-        if (!areaPallet || areaPallet <= 0) continue;
+    const pn = Utils.txt(row[COL.part]);
 
-        // Calcula pallets necessários
-        const palletsNecessarios = Math.ceil(saldo / pecasPorPallet);
-        
-        // Calcula posições no chão
-        const posicoesChao = Math.ceil(palletsNecessarios / empilha);
-        
-        // Área parcial
-        const areaParcial = posicoesChao * areaPallet;
+    // (Opcional) ainda leio saldoDef só pra mostrar no modal, mas NÃO conta pra cálculo/filtro
+    const saldoDef = Utils.int(row[COL.saldoDef]);
 
-        // Salva detalhes para o modal
-        items.push({
-          pn,
-          saldo,
-          areaPallet,
-          empilha,
-          pecasPorPallet,
-          palletsNecessarios,
-          posicoesChao,
-          areaParcial
-        });
+    // Converte os valores
+    let areaPallet = Utils.float(row[COL.areaPallet]);
+    let empilha = Utils.int(row[COL.empilhaMax]);
+    let pecasPorPallet = Utils.int(row[COL.pecasPorPallet]);
 
-        totalArea += areaParcial;
-        linhasProcessadas++;
-      }
+    // Se não encontrar, usa valores padrão
+    if (!empilha || empilha <= 0) empilha = 1;
+    if (!pecasPorPallet || pecasPorPallet <= 0) pecasPorPallet = 1;
 
-      // Ordena por maior área
-      items.sort((a, b) => b.areaParcial - a.areaParcial);
+    // Valida se tem área do pallet
+    if (!areaPallet || areaPallet <= 0) continue;
 
-      return {
-        total: totalArea,
-        items: items,
-        count: linhasProcessadas
-      };
-    },
+    // ✅ pendente = saldo (somente)
+    const pendente = saldo;
+
+    // Pallets necessários (✅ usa pendente baseado só em saldo)
+    const palletsNecessarios = Math.ceil(pendente / pecasPorPallet);
+
+    // Posições no chão
+    const posicoesChao = Math.ceil(palletsNecessarios / empilha);
+
+    // Área parcial
+    const areaParcial = posicoesChao * areaPallet;
+
+    // Salva detalhes para o modal
+    items.push({
+      pn,
+      saldo,
+      saldoDef,   // só informativo
+      pendente,   // agora é igual ao saldo
+
+      areaPallet,
+      empilha,
+      pecasPorPallet,
+      palletsNecessarios,
+      posicoesChao,
+      areaParcial
+    });
+
+    totalArea += areaParcial;
+    linhasProcessadas++;
+  }
+
+  // Ordena por maior área
+  items.sort((a, b) => b.areaParcial - a.areaParcial);
+
+  return {
+    total: totalArea,
+    items: items,
+    count: linhasProcessadas
+  };
+},
     
     // ========== FUNÇÕES DE BACKUP ==========
     
@@ -1662,49 +1673,54 @@ VERSION: 'v1.6.0',
       `;
       
       if (items.length > 0) {
-        html += `
-          <h4 class="font-bold text-gray-700 dark:text-gray-300 mb-3">Detalhamento por Produto (${count} itens)</h4>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead class="bg-gray-100 dark:bg-gray-800">
-                <tr>
-                  <th class="px-3 py-2 text-left">PN</th>
-                  <th class="px-3 py-2 text-right">Quantidade</th>
-                  <th class="px-3 py-2 text-right">Área/Pallet</th>
-                  <th class="px-3 py-2 text-right">Empilha</th>
-                  <th class="px-3 py-2 text-right">Peças/Pallet</th>
-                  <th class="px-3 py-2 text-right">Pallets</th>
-                  <th class="px-3 py-2 text-right">Posições</th>
-                  <th class="px-3 py-2 text-right">Área (m²)</th>
-                </tr>
-              </thead>
-              <tbody>
-        `;
-        
-        items.forEach(item => {
-          html += `
-            <tr class="border-b border-gray-200 dark:border-gray-800">
-              <td class="px-3 py-2 font-mono">${item.pn}</td>
-              <td class="px-3 py-2 text-right">${item.saldo}</td>
-              <td class="px-3 py-2 text-right">${item.areaPallet.toFixed(2)}</td>
-              <td class="px-3 py-2 text-right">${item.empilha}</td>
-              <td class="px-3 py-2 text-right">${item.pecasPorPallet}</td>
-              <td class="px-3 py-2 text-right">${item.palletsNecessarios}</td>
-              <td class="px-3 py-2 text-right">${item.posicoesChao}</td>
-              <td class="px-3 py-2 text-right font-bold ${item.areaParcial > 10 ? 'text-red-600' : ''}">${item.areaParcial.toFixed(2)}</td>
-            </tr>
-          `;
-        });
-        
-        html += `
-              </tbody>
-            </table>
-          </div>
-        `;
-      } else {
-        html += '<p class="text-center text-gray-500 py-8">Nenhum produto com saldo pendente</p>';
-      }
-      
+  html += `
+    <h4 class="font-bold text-gray-700 dark:text-gray-300 mb-3">Detalhamento por Produto (${count} itens)</h4>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100 dark:bg-gray-800">
+          <tr>
+            <th class="px-3 py-2 text-left">PN</th>
+            <th class="px-3 py-2 text-right">Pendente</th>
+            <th class="px-3 py-2 text-right">Saldo</th>
+            <th class="px-3 py-2 text-right">Saldo Def</th>
+            <th class="px-3 py-2 text-right">Área/Pallet</th>
+            <th class="px-3 py-2 text-right">Empilha</th>
+            <th class="px-3 py-2 text-right">Peças/Pallet</th>
+            <th class="px-3 py-2 text-right">Pallets</th>
+            <th class="px-3 py-2 text-right">Posições</th>
+            <th class="px-3 py-2 text-right">Área (m²)</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  items.forEach(item => {
+    html += `
+      <tr class="border-b border-gray-200 dark:border-gray-800">
+        <td class="px-3 py-2 font-mono">${item.pn}</td>
+
+        <td class="px-3 py-2 text-right font-bold">${(item.pendente || 0)}</td>
+        <td class="px-3 py-2 text-right">${(item.saldo || 0)}</td>
+        <td class="px-3 py-2 text-right">${(item.saldoDef || 0)}</td>
+
+        <td class="px-3 py-2 text-right">${item.areaPallet.toFixed(2)}</td>
+        <td class="px-3 py-2 text-right">${item.empilha}</td>
+        <td class="px-3 py-2 text-right">${item.pecasPorPallet}</td>
+        <td class="px-3 py-2 text-right">${item.palletsNecessarios}</td>
+        <td class="px-3 py-2 text-right">${item.posicoesChao}</td>
+        <td class="px-3 py-2 text-right font-bold ${item.areaParcial > 10 ? 'text-red-600' : ''}">${item.areaParcial.toFixed(2)}</td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+} else {
+  html += '<p class="text-center text-gray-500 py-8">Nenhum produto com pendência</p>';
+}
       content.innerHTML = html;
     },
     
