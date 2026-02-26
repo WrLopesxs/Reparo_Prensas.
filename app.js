@@ -955,22 +955,30 @@ const ToyotaQC = (function() {
       return defects[0] || null;
     },
     
-    getTopPNs: (data) => {
-      const pnMap = {};
+      getTopPNs: (data) => {
+    const pnMap = {};
+    
+    for (const row of data) {
+      const pn = Utils.txt(row[COL.part]);
+      if (!pn || pn === '-') continue;
       
-      for (const row of data) {
-        const pn = Utils.txt(row[COL.part]);
-        const saldoDef = Utils.int(row[COL.saldoDef]);
-        if (!pn || pn === '-' || saldoDef <= 0) continue;
-        
-        pnMap[pn] = (pnMap[pn] || 0) + saldoDef;
-      }
+      // SOMA DOS REPARADOS (3 turnos) - isso que define criticidade
+      const rep1 = Utils.int(row[COL.rep1]);
+      const rep2 = Utils.int(row[COL.rep2]);
+      const rep3 = Utils.int(row[COL.rep3]);
+      const totalReparos = rep1 + rep2 + rep3;
       
-      return Object.entries(pnMap)
-        .map(([pn, qty]) => ({ pn, qty }))
-        .sort((a, b) => b.qty - a.qty)
-        .slice(0, 3);
-    },
+      // Só considera se teve reparo
+      if (totalReparos <= 0) continue;
+      
+      pnMap[pn] = (pnMap[pn] || 0) + totalReparos;
+    }
+    
+    return Object.entries(pnMap)
+      .map(([pn, qty]) => ({ pn, qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 3);
+  },
     
     // Função para calcular área do reparo e salvar detalhes
   computeRepairArea: (data) => {
@@ -1322,9 +1330,6 @@ const ToyotaQC = (function() {
       UI.bindEvents();
       UI.initQuickFilters();
       
-      // Criar botões de backup
-      UI.createBackupButtons();
-      
       // Carregar lista de backups
       State.backups.list = DataManager.getBackupList();
       
@@ -1355,14 +1360,20 @@ const ToyotaQC = (function() {
       console.log(`🚀 Toyota Quality Control ${CONFIG.VERSION} iniciado`);
     },
     
-    // Criar botões de backup
+    // Criar botões de backup - AGORA SÓ CRIA QUANDO NECESSÁRIO
     createBackupButtons: () => {
+      // Só criar botões se estiver na dashboard
+      if (State.currentScreen !== 'dashboard') {
+        console.log('Não está na dashboard, não criando botões');
+        return;
+      }
+      
       // Verificar se já existe
       if (document.getElementById('btn-backup')) {
         return;
       }
       
-      console.log('🔧 Criando botões de backup...');
+      console.log('🔧 Criando botões de backup na dashboard...');
       
       // Procurar a div principal do header
       const headerDiv = document.querySelector('.flex.justify-between.items-center.h-16');
@@ -1407,7 +1418,23 @@ const ToyotaQC = (function() {
       rightContainer.insertBefore(backupBtn, rightContainer.firstChild);
       rightContainer.insertBefore(areaBtn, rightContainer.firstChild);
       
-      console.log('✅ Botões de backup e área criados');
+      console.log('✅ Botões de backup e área criados na dashboard');
+    },
+    
+    // Remover botões de backup
+    removeBackupButtons: () => {
+      const backupBtn = document.getElementById('btn-backup');
+      const areaBtn = document.getElementById('btn-area');
+      
+      if (backupBtn) {
+        backupBtn.remove();
+        console.log('Botão de backup removido');
+      }
+      
+      if (areaBtn) {
+        areaBtn.remove();
+        console.log('Botão de área removido');
+      }
     },
     
     // Criar modal de backup
@@ -1565,21 +1592,6 @@ const ToyotaQC = (function() {
     // Apagar backup
     deleteBackup: (fileName) => {
       DataManager.deleteBackup(fileName);
-    },
-    
-    // Criar botão de área no header
-    createAreaButton: () => {
-      // Já é criado junto com o botão de backup
-    },
-    
-    // Remover botão de área
-    removeAreaButton: () => {
-      // Manter botões de backup, remover apenas área
-      const areaBtn = document.getElementById('btn-area');
-      if (areaBtn) {
-        areaBtn.remove();
-        console.log('Botão de área removido');
-      }
     },
     
     // Abrir modal da área
@@ -2130,15 +2142,7 @@ const ToyotaQC = (function() {
               </ul>
             </div>
 
-            <div class="manual-section">
-              <h4>⚠️ Alertas Automáticos</h4>
-              <p class="text-sm text-gray-600 dark:text-gray-300">O sistema alerta automaticamente quando:</p>
-              <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-300 mt-1">
-                <li>Área do reparo ultrapassa 70% (alerta amarelo no modal)</li>
-                <li>Área do reparo atinge 100% (alerta vermelho no modal)</li>
-                <li>Um defeito "explodiu" (aumento >50% em relação à última atualização)</li>
-              </ul>
-            </div>
+          
 
           <div class="mt-6 pt-3 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
             <span class="text-[10px] text-gray-400">Versão: ${CONFIG.VERSION}</span>
@@ -2214,6 +2218,9 @@ const ToyotaQC = (function() {
     },
 
     renderMenuSummary: () => {
+      // Remover botões ao entrar no menu
+      UI.removeBackupButtons();
+      
       let saldoTotal = 0;
       let saldoDefTotal = 0;
       let minD = null;
@@ -2262,11 +2269,7 @@ const ToyotaQC = (function() {
       title.innerText = (filter === 'GERAL') ? "VISÃO GERAL (TODOS)" : "MONITORAMENTO: " + filter.join(' / ');
 
       // Criar botões na visão geral
-      if (filter === 'GERAL') {
-        UI.createBackupButtons(); // Isso recria ambos os botões se necessário
-      } else {
-        UI.removeAreaButton(); // Remove apenas o botão de área
-      }
+      UI.createBackupButtons();
       
       UI.renderDashboard();
     },
@@ -2280,12 +2283,8 @@ const ToyotaQC = (function() {
       State.currentFilter = null;
       State.currentDefectKey = null;
       
-      // Manter botões de backup? Decidi manter apenas na dashboard
-      // Vou remover todos ao voltar ao menu
-      const backupBtn = document.getElementById('btn-backup');
-      const areaBtn = document.getElementById('btn-area');
-      if (backupBtn) backupBtn.remove();
-      if (areaBtn) areaBtn.remove();
+      // Remover botões ao voltar ao menu
+      UI.removeBackupButtons();
       
       UI.renderMenuSummary();
     },
@@ -2298,10 +2297,7 @@ const ToyotaQC = (function() {
       document.getElementById('screen-missingcheck').classList.add('hidden');
       
       // Remover botões
-      const backupBtn = document.getElementById('btn-backup');
-      const areaBtn = document.getElementById('btn-area');
-      if (backupBtn) backupBtn.remove();
-      if (areaBtn) areaBtn.remove();
+      UI.removeBackupButtons();
       
       UI.renderDefectScreen(defectKey);
     },
@@ -2323,10 +2319,7 @@ const ToyotaQC = (function() {
       document.getElementById('screen-missingcheck').classList.remove('hidden');
       
       // Remover botões
-      const backupBtn = document.getElementById('btn-backup');
-      const areaBtn = document.getElementById('btn-area');
-      if (backupBtn) backupBtn.remove();
-      if (areaBtn) areaBtn.remove();
+      UI.removeBackupButtons();
       
       UI.renderMissingCheckScreen();
     },
@@ -2337,10 +2330,7 @@ const ToyotaQC = (function() {
       document.getElementById('screen-menu').classList.remove('hidden');
       
       // Remover botões
-      const backupBtn = document.getElementById('btn-backup');
-      const areaBtn = document.getElementById('btn-area');
-      if (backupBtn) backupBtn.remove();
-      if (areaBtn) areaBtn.remove();
+      UI.removeBackupButtons();
       
       UI.renderMenuSummary();
     },
@@ -2484,12 +2474,18 @@ const ToyotaQC = (function() {
 
       UI.renderTopDefectAndPNs(stats, dateFiltered);
 
-      State.tablePager.totalRows = dateFiltered.length;
+      // FILTRO: Manter apenas linhas com qtdCheck > 0 para a tabela
+      const qtdCheckFiltered = dateFiltered.filter(row => {
+        const qtdCheck = Utils.int(row[COL.qtdCheck]);
+        return qtdCheck > 0;
+      });
+
+      State.tablePager.totalRows = qtdCheckFiltered.length;
       State.tablePager.totalPages = Math.max(1, Math.ceil(State.tablePager.totalRows / State.tablePager.pageSize));
       if (State.tablePager.page > State.tablePager.totalPages) State.tablePager.page = State.tablePager.totalPages;
       if (State.tablePager.page < 1) State.tablePager.page = 1;
 
-      UI.renderTablePage(dateFiltered);
+      UI.renderTablePage(qtdCheckFiltered); // Passar os dados filtrados
       UI.updateTablePagerUI();
       UI.updateCharts(stats);
       
@@ -2504,42 +2500,42 @@ const ToyotaQC = (function() {
     },
     
     renderTopDefectAndPNs: (stats, data) => {
-      const topDefect = DataManager.getTopDefect(stats);
-      const topPNs = DataManager.getTopPNs(data);
-      
-      const top1Container = document.getElementById('top1-defeito-content');
-      if (top1Container) {
-        if (topDefect) {
-          top1Container.innerHTML = `
-            <div class="text-center">
-              <p class="text-sm font-bold text-toyota-red">${topDefect.name}</p>
-              <p class="text-2xl font-black text-gray-800 dark:text-gray-100">${Utils.formatNumber(topDefect.qty)}</p>
-              <p class="text-[10px] text-gray-400">Saldo Defeito</p>
-            </div>
-          `;
-        } else {
-          top1Container.innerHTML = '<p class="text-xs text-gray-500">Nenhum defeito registrado</p>';
-        }
+    const topDefect = DataManager.getTopDefect(stats);
+    const topPNs = DataManager.getTopPNs(data);
+    
+    const top1Container = document.getElementById('top1-defeito-content');
+    if (top1Container) {
+      if (topDefect) {
+        top1Container.innerHTML = `
+          <div class="text-center">
+            <p class="text-sm font-bold text-toyota-red">${topDefect.name}</p>
+            <p class="text-2xl font-black text-gray-800 dark:text-gray-100">${Utils.formatNumber(topDefect.qty)}</p>
+            <p class="text-[10px] text-gray-400">Saldo Defeito</p>
+          </div>
+        `;
+      } else {
+        top1Container.innerHTML = '<p class="text-xs text-gray-500">Nenhum defeito registrado</p>';
       }
-      
-      const top3Container = document.getElementById('top3-pns-content');
-      if (top3Container) {
-        if (topPNs.length > 0) {
-          top3Container.innerHTML = topPNs.map((pn, idx) => `
-            <div class="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <div class="flex items-center justify-center gap-1 mb-1">
-                <span class="position-badge position-${idx+1}">${idx+1}</span>
-                <span class="font-bold text-sm">${pn.pn}</span>
-              </div>
-              <p class="text-lg font-black text-yellow-600 dark:text-yellow-500">${Utils.formatNumber(pn.qty)}</p>
-              <p class="text-[9px] text-gray-400">Saldo Defeito</p>
+    }
+    
+    const top3Container = document.getElementById('top3-pns-content');
+    if (top3Container) {
+      if (topPNs.length > 0) {
+        top3Container.innerHTML = topPNs.map((pn, idx) => `
+          <div class="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div class="flex items-center justify-center gap-1 mb-1">
+              <span class="position-badge position-${idx+1}">${idx+1}</span>
+              <span class="font-bold text-sm">${pn.pn}</span>
             </div>
-          `).join('');
-        } else {
-          top3Container.innerHTML = '<p class="text-xs text-gray-500 col-span-3 text-center">Nenhum PN com saldo defeito</p>';
-        }
+            <p class="text-lg font-black text-red-600 dark:text-red-500">${Utils.formatNumber(pn.qty)}</p>
+            <p class="text-[9px] text-gray-400">Total Reparos</p> <!-- ALTERADO AQUI -->
+          </div>
+        `).join('');
+      } else {
+        top3Container.innerHTML = '<p class="text-xs text-gray-500 col-span-3 text-center">Nenhum PN com reparos</p>'; // ALTERADO AQUI
       }
-    },
+    }
+  },
 
     renderDashboardTableOnly: () => {
       if (!State.data.length) return;
@@ -2553,12 +2549,18 @@ const ToyotaQC = (function() {
       
       const tableData = DataManager.applyDateFilter(pnFiltered);
 
-      State.tablePager.totalRows = tableData.length;
+      // FILTRO: Manter apenas linhas com qtdCheck > 0
+      const qtdCheckFiltered = tableData.filter(row => {
+        const qtdCheck = Utils.int(row[COL.qtdCheck]);
+        return qtdCheck > 0;
+      });
+
+      State.tablePager.totalRows = qtdCheckFiltered.length;
       State.tablePager.totalPages = Math.max(1, Math.ceil(State.tablePager.totalRows / State.tablePager.pageSize));
       if (State.tablePager.page > State.tablePager.totalPages) State.tablePager.page = State.tablePager.totalPages;
       if (State.tablePager.page < 1) State.tablePager.page = 1;
 
-      UI.renderTablePage(tableData);
+      UI.renderTablePage(qtdCheckFiltered);
       UI.updateTablePagerUI();
     },
 
@@ -2799,5 +2801,4 @@ window.openMissingCheckScreen = () => ToyotaQC.openMissingCheckScreen();
 window.backToMenuFromMissingCheck = () => ToyotaQC.backToMenuFromMissingCheck();
 window.closeLoginModal = () => ToyotaQC.closeLoginModal();
 window.closeAreaModal = () => ToyotaQC.closeAreaModal();
-
 window.closeBackupModal = () => ToyotaQC.closeBackupModal();
