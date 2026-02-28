@@ -7,6 +7,10 @@ const ToyotaQC = (function() {
     GID: '914910661',
     UPDATE_INTERVAL: 600,
     CACHE_TIME: 300000,
+    RETRY_BASE_MS: 1000,
+    RETRY_JITTER_MS: 400,
+    FETCH_LOCK_MS: 15000,
+    FETCH_LOCK_KEY: 'toyota_fetch_lock',
     TOP_PNS: 15,
     MANUAL_COOLDOWN: 60,
     SHEET_OPEN_URL: 'https://docs.google.com/spreadsheets/d/1y8kcWOCFCXeHHtC_MFHBD2M5zYasY6A8K4MW_Qqo3V0/edit?gid=914910661#gid=914910661',
@@ -82,6 +86,7 @@ const ToyotaQC = (function() {
     timer: CONFIG.UPDATE_INTERVAL,
     manualCooldownLeft: 0,
     isFetching: false,
+    tabId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     intervalRef: null,
     
     connectionStatus: 'online',
@@ -153,8 +158,20 @@ const ToyotaQC = (function() {
     },
     
     txt: (v) => (v === null || v === undefined || String(v).trim() === '') ? '-' : String(v),
+    escapeHtml: (v) => String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;'),
+    safeTxt: (v) => Utils.escapeHtml(Utils.txt(v)),
     normalizePN: (v) => String(v || '').trim().toUpperCase(),
     normalizeDefect: (name) => String(name || '-').trim().replace(/\s+/g, ' ').toUpperCase(),
+    getScrapTotal: (row) => {
+      const fromTotal = Utils.int(row[COL.scrapTotal]);
+      if (fromTotal > 0) return fromTotal;
+      return Utils.int(row[COL.scr1]) + Utils.int(row[COL.scr2]) + Utils.int(row[COL.scr3]);
+    },
 
     parseDateBR: (value) => {
       const s = String(value || '').trim();
@@ -208,12 +225,43 @@ const ToyotaQC = (function() {
         try {
           const response = await fetch(url, { cache: 'no-store' });
           if (response.ok) return response;
+          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+            throw new Error(`HTTP ${response.status}`);
+          }
           if (i === retries - 1) throw new Error(`HTTP ${response.status}`);
         } catch (err) {
           if (i === retries - 1) throw err;
-          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+          const jitter = Math.floor(Math.random() * CONFIG.RETRY_JITTER_MS);
+          const delay = (CONFIG.RETRY_BASE_MS * Math.pow(2, i)) + jitter;
+          await new Promise(r => setTimeout(r, delay));
         }
       }
+    },
+
+    acquireFetchLock: () => {
+      const now = Date.now();
+      let lock = null;
+      try {
+        lock = JSON.parse(localStorage.getItem(CONFIG.FETCH_LOCK_KEY) || 'null');
+      } catch (_e) {
+        lock = null;
+      }
+
+      if (lock && lock.tabId !== State.tabId && (now - lock.ts) < CONFIG.FETCH_LOCK_MS) {
+        return false;
+      }
+
+      localStorage.setItem(CONFIG.FETCH_LOCK_KEY, JSON.stringify({ tabId: State.tabId, ts: now }));
+      return true;
+    },
+
+    releaseFetchLock: () => {
+      try {
+        const lock = JSON.parse(localStorage.getItem(CONFIG.FETCH_LOCK_KEY) || 'null');
+        if (lock && lock.tabId === State.tabId) {
+          localStorage.removeItem(CONFIG.FETCH_LOCK_KEY);
+        }
+      } catch (_e) {}
     },
 
     showToast: (message, type = 'info', duration = 3000) => {
@@ -797,85 +845,67 @@ const ToyotaQC = (function() {
 
       const isMonthly = State.comparativeChart.view === 'monthly';
       const currentYear = State.comparativeChart.year;
-      
+
       let labels = [];
       let saldoDefData = [];
       let scrapData = [];
 
       if (isMonthly) {
-        // Dados mensais do ano selecionado
         labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        
-        // Inicializar arrays com zeros
         saldoDefData = new Array(12).fill(0);
         scrapData = new Array(12).fill(0);
-        
-        // Preencher com dados do ano selecionado
+
         data.forEach(row => {
           const date = Utils.parseDateBR(row[COL.data]);
           if (!date || date.getFullYear() !== currentYear) return;
-          
-          const month = date.getMonth(); // 0-11
+
+          const month = date.getMonth();
           const saldoDef = Utils.int(row[COL.saldoDef]);
-          const scrap = Utils.int(row[COL.scrapTotal]) || 
-                       (Utils.int(row[COL.scr1]) + Utils.int(row[COL.scr2]) + Utils.int(row[COL.scr3]));
-          
+          const scrap = Utils.getScrapTotal(row);
+
           saldoDefData[month] += saldoDef;
           scrapData[month] += scrap;
         });
       } else {
-        // Dados anuais (apenas anos que existem nos dados)
-        const years = new Set();
+        const yearTotals = new Map();
+
         data.forEach(row => {
           const date = Utils.parseDateBR(row[COL.data]);
-          if (date) {
-            const year = date.getFullYear();
-            // Filtrar anos válidos (entre 2000 e 2100)
-            if (year >= 2000 && year <= 2100) {
-              years.add(year);
-            }
-          }
+          if (!date) return;
+
+          const year = date.getFullYear();
+          if (year < 2000 || year > 2100) return;
+
+          const saldoDef = Utils.int(row[COL.saldoDef]);
+          const scrap = Utils.getScrapTotal(row);
+
+          const totals = yearTotals.get(year) || { saldoDef: 0, scrap: 0 };
+          totals.saldoDef += saldoDef;
+          totals.scrap += scrap;
+          yearTotals.set(year, totals);
         });
-        
-        const sortedYears = Array.from(years).sort((a, b) => a - b); // Ordem crescente
-        
-        // Se não houver anos válidos, mostrar mensagem
-        if (sortedYears.length === 0) {
+
+        const validYears = Array.from(yearTotals.entries())
+          .filter(([, totals]) => totals.saldoDef > 0 || totals.scrap > 0)
+          .sort((a, b) => a[0] - b[0]);
+
+        if (validYears.length === 0) {
           labels = ['Sem dados'];
           saldoDefData = [0];
           scrapData = [0];
         } else {
-          labels = sortedYears.map(y => y.toString());
-          saldoDefData = new Array(sortedYears.length).fill(0);
-          scrapData = new Array(sortedYears.length).fill(0);
-          
-          data.forEach(row => {
-            const date = Utils.parseDateBR(row[COL.data]);
-            if (!date) return;
-            
-            const year = date.getFullYear();
-            // Filtrar anos válidos
-            if (year < 2000 || year > 2100) return;
-            
-            const yearIndex = sortedYears.indexOf(year);
-            if (yearIndex === -1) return;
-            
-            const saldoDef = Utils.int(row[COL.saldoDef]);
-            const scrap = Utils.int(row[COL.scrapTotal]) || 
-                         (Utils.int(row[COL.scr1]) + Utils.int(row[COL.scr2]) + Utils.int(row[COL.scr3]));
-            
-            saldoDefData[yearIndex] += saldoDef;
-            scrapData[yearIndex] += scrap;
-          });
+          labels = validYears.map(([year]) => String(year));
+          saldoDefData = validYears.map(([, totals]) => totals.saldoDef);
+          scrapData = validYears.map(([, totals]) => totals.scrap);
         }
       }
 
-      const maxValue = Math.max(...saldoDefData, ...scrapData, 1); // Garantir que não seja zero
+      const maxValue = Math.max(...saldoDefData, ...scrapData, 1);
 
       return new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: labels,
+          labels,
           datasets: [
             {
               label: 'Saldo Defeito',
@@ -899,44 +929,11 @@ const ToyotaQC = (function() {
         },
         options: {
           ...Charts.baseConfig,
-          layout: {
-            padding: {
-              top: 50,
-              bottom: 30,
-              left: 15,
-              right: 50
-            }
-          },
           plugins: {
             ...Charts.baseConfig.plugins,
-            title: {
-              display: true,
-              text: isMonthly ? `Comparativo Mensal - ${currentYear}` : 'Comparativo Anual',
-              color: Charts.getTextColor(),
-              font: { size: 13, weight: 'bold' },
-              padding: { bottom: 25 }
-            },
-            legend: {
-              ...Charts.baseConfig.plugins.legend,
-              position: 'top',
-              align: 'center',
-              labels: {
-                ...Charts.baseConfig.plugins.legend.labels,
-                padding: 20,
-                usePointStyle: true,
-                pointStyle: 'rectRounded',
-                font: { size: 11 }
-              }
-            },
             datalabels: {
               ...Charts.baseConfig.plugins.datalabels,
-              anchor: 'end',
-              align: 'end',
-              offset: 10,
-              backgroundColor: 'transparent',
-              color: () => Charts.getTextColor(),
-              font: { weight: 'bold', size: 10 },
-              formatter: (value) => value > 0 ? value.toLocaleString('pt-BR') : '',
+              formatter: (value) => Number(value).toLocaleString('pt-BR'),
               display: (context) => {
                 const value = context.dataset.data[context.dataIndex];
                 return value > 0;
@@ -944,31 +941,15 @@ const ToyotaQC = (function() {
             }
           },
           scales: {
-            x: { 
+            x: {
               grid: { display: false },
-              ticks: { 
-                color: Charts.getTextColor(), 
-                font: { size: 11, weight: '600' },
-                maxRotation: 45,
-                minRotation: 30
-              }
+              ticks: { color: Charts.getTextColor(), font: { size: 11, weight: '600' } }
             },
             y: {
               beginAtZero: true,
-              max: maxValue * 1.25,
+              suggestedMax: maxValue * 1.2,
               grid: { color: Charts.getGridColor(), drawBorder: false },
-              ticks: { 
-                color: Charts.getTextColor(), 
-                font: { size: 10 },
-                stepSize: Math.ceil(maxValue / 6) || 1
-              },
-              title: {
-                display: true,
-                text: 'Quantidade',
-                color: Charts.getTextColor(),
-                font: { size: 11, weight: 'bold' },
-                padding: { bottom: 15 }
-              }
+              ticks: { color: Charts.getTextColor(), font: { size: 10 } }
             }
           }
         }
@@ -981,6 +962,7 @@ const ToyotaQC = (function() {
     fetchData: async (isManual = false) => {
       if (State.isFetching) return;
       State.isFetching = true;
+      UI.updateManualButtonState();
 
       const cacheKey = `toyota_data_${CONFIG.SHEET_ID}`;
       const cached = localStorage.getItem(cacheKey);
@@ -991,14 +973,29 @@ const ToyotaQC = (function() {
           State.data = JSON.parse(cached);
           DataManager.processData();
           State.isFetching = false;
+          UI.updateManualButtonState();
           State.connectionStatus = 'cache';
           UI.updateConnectionStatus();
           UI.hideConnBanner();
+          UI.hideInitialLoading();
           Utils.showToast('Dados carregados do cache', 'info');
           return;
         } catch (e) {
           console.warn('Erro ao ler cache:', e);
         }
+      }
+
+      if (!Utils.acquireFetchLock()) {
+        if (cached) {
+          try {
+            State.data = JSON.parse(cached);
+            DataManager.processData();
+          } catch (_e) {}
+        }
+        State.isFetching = false;
+        UI.updateManualButtonState();
+        UI.hideInitialLoading();
+        return;
       }
 
       Utils.showSkeleton('table-body', 5, 24);
@@ -1009,8 +1006,7 @@ const ToyotaQC = (function() {
       try {
         const response = await Utils.fetchWithRetry(url);
         let csvText = await response.text();
-        
-        // Remove BOM if present
+
         csvText = csvText.replace(/^\uFEFF/, '');
 
         const parsed = Papa.parse(csvText, {
@@ -1055,24 +1051,37 @@ const ToyotaQC = (function() {
           UI.showConnBanner('Erro de conexão', 'Não foi possível carregar os dados', err.message);
         }
       } finally {
+        Utils.releaseFetchLock();
         State.isFetching = false;
         UI.updateLastUpdate();
         UI.updateConnectionStatus();
+        UI.updateManualButtonState();
+        UI.hideInitialLoading();
       }
     },
 
     processData: () => {
+      const availableYears = DataManager.getAvailableYears();
+      if (availableYears.length > 0) {
+        if (!availableYears.includes(State.comparativeChart.year)) {
+          State.comparativeChart.year = availableYears[0];
+        }
+      } else {
+        State.comparativeChart.year = new Date().getFullYear();
+      }
+
       UI.buildCheckedFilterOptions();
       UI.renderMenuSummary();
       UI.updateScreen();
       UI.checkAlerts();
-      
-      // Calcular área do reparo para o gráfico da página inicial
+
       const areaResult = DataManager.computeRepairArea(State.data);
       State.areaDetails = {
         ...areaResult,
         lastUpdate: new Date()
       };
+
+      UI.hideInitialLoading();
     },
 
     matchesFamily: (rowPN, familyList) => {
@@ -1199,7 +1208,7 @@ const ToyotaQC = (function() {
         const scr2 = Utils.int(row[COL.scr2]);
         const scr3 = Utils.int(row[COL.scr3]);
 
-        const scrapTotal = Utils.int(row[COL.scrapTotal]) || (scr1 + scr2 + scr3);
+        const scrapTotal = Utils.getScrapTotal(row);
         const saldo = Utils.int(row[COL.saldo]);
         const saldoDef = Utils.int(row[COL.saldoDef]);
 
@@ -1231,8 +1240,19 @@ const ToyotaQC = (function() {
     },
     
     getTopDefect: (stats) => {
+      const ignoredTop1Defects = new Set([
+        'Checagem de qualidade 100%',
+        'Transbordo',
+        'Palete para Kaizen, Peças OK',
+        'Voltou da W',
+        'Checagem de qualidade (trinca)',
+        'Checagem de qualidade (amassado)',
+        'Checagem de qualidade (vinco)'
+      ].map(Utils.normalizeDefect));
+
       const defects = Object.entries(stats.defectTypes)
         .map(([name, qty]) => ({ name, qty }))
+        .filter(({ name }) => !ignoredTop1Defects.has(Utils.normalizeDefect(name)))
         .sort((a, b) => b.qty - a.qty);
       
       return defects[0] || null;
@@ -1332,21 +1352,35 @@ const ToyotaQC = (function() {
     },
     
     // ✅ CORRIGIDO: Obter anos disponíveis para o gráfico comparativo
-    getAvailableYears: () => {
-      const years = new Set();
-      
+    getComparativeYearTotals: () => {
+      const yearTotals = new Map();
+
       State.data.forEach(row => {
         const date = Utils.parseDateBR(row[COL.data]);
-        if (date) {
-          const year = date.getFullYear();
-          // Filtrar anos válidos (entre 2000 e 2100)
-          if (year >= 2000 && year <= 2100) {
-            years.add(year);
-          }
-        }
+        if (!date) return;
+
+        const year = date.getFullYear();
+        if (year < 2000 || year > 2100) return;
+
+        const saldoDef = Utils.int(row[COL.saldoDef]);
+        const scrap = Utils.getScrapTotal(row);
+
+        const current = yearTotals.get(year) || { saldoDef: 0, scrap: 0 };
+        current.saldoDef += saldoDef;
+        current.scrap += scrap;
+        yearTotals.set(year, current);
       });
-      
-      return Array.from(years).sort((a, b) => b - a); // Ordem decrescente
+
+      return yearTotals;
+    },
+
+    getAvailableYears: () => {
+      const yearTotals = DataManager.getComparativeYearTotals();
+
+      return Array.from(yearTotals.entries())
+        .filter(([, totals]) => totals.saldoDef > 0 || totals.scrap > 0)
+        .map(([year]) => year)
+        .sort((a, b) => b - a); // Ordem decrescente
     },
     
     // ========== FUNÇÕES DE BACKUP ==========
@@ -1627,6 +1661,12 @@ const ToyotaQC = (function() {
       UI.initTheme();
       UI.bindEvents();
       UI.initQuickFilters();
+      UI.showInitialLoading();
+
+      document.getElementById('last-update-txt')?.setAttribute('aria-live', 'polite');
+      document.getElementById('conn-status-text')?.setAttribute('aria-live', 'polite');
+      document.getElementById('btn-refresh-now')?.setAttribute('aria-label', 'Atualizar dados agora');
+      document.getElementById('btn-theme')?.setAttribute('aria-label', 'Alternar tema claro e escuro');
       
       // Carregar lista de backups
       State.backups.list = DataManager.getBackupList();
@@ -1759,6 +1799,9 @@ const ToyotaQC = (function() {
       const modal = document.createElement('div');
       modal.id = 'backup-modal';
       modal.className = 'hidden absolute inset-0 bg-black/60 z-[999] items-center justify-center p-4';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-label', 'Gerenciamento de backup');
       modal.innerHTML = `
         <div class="w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5 max-h-[80vh] overflow-y-auto">
           <div class="flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 pb-3 border-b border-gray-200 dark:border-gray-800">
@@ -1871,13 +1914,15 @@ const ToyotaQC = (function() {
         const date = new Date(backup.timestamp);
         const formattedDate = Utils.formatDateFull(date);
         const isCached = backup.cached || false;
+        const safeName = Utils.escapeHtml(backup.name);
+        const encodedName = encodeURIComponent(backup.name);
         
         return `
           <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group hover:bg-gray-100 dark:hover:bg-gray-700 transition">
             <div class="flex items-center gap-3 flex-1 min-w-0">
               <i class="ph-bold ph-file-text ${isCached ? 'text-green-600' : 'text-gray-500'}"></i>
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate" title="${backup.name}">${backup.name}</p>
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate" title="${safeName}">${safeName}</p>
                 <p class="text-xs text-gray-500">
                   ${formattedDate} • ${backup.rows} registros • ${backup.size || '--'}
                   ${isCached ? ' • 💾 Em cache' : ''}
@@ -1885,12 +1930,12 @@ const ToyotaQC = (function() {
               </div>
             </div>
             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-              <button onclick="ToyotaQC.UI.downloadBackup('${backup.name}')" 
+              <button onclick="ToyotaQC.UI.downloadBackup('${encodedName}')" 
                       class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg" 
                       title="${isCached ? 'Baixar do cache' : 'Baixar (não está em cache)'}">
                 <i class="ph-bold ph-download"></i>
               </button>
-              <button onclick="ToyotaQC.UI.deleteBackup('${backup.name}')" 
+              <button onclick="ToyotaQC.UI.deleteBackup('${encodedName}')" 
                       class="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg" 
                       title="Remover da lista">
                 <i class="ph-bold ph-trash"></i>
@@ -1903,12 +1948,16 @@ const ToyotaQC = (function() {
     
     // Download de backup pelo nome
     downloadBackup: (fileName) => {
-      DataManager.downloadBackupByName(fileName);
+      let decoded = fileName;
+      try { decoded = decodeURIComponent(fileName); } catch (_e) {}
+      DataManager.downloadBackupByName(decoded);
     },
     
     // Apagar backup
     deleteBackup: (fileName) => {
-      DataManager.deleteBackup(fileName);
+      let decoded = fileName;
+      try { decoded = decodeURIComponent(fileName); } catch (_e) {}
+      DataManager.deleteBackup(decoded);
     },
     
     // Abrir modal da área
@@ -1938,6 +1987,9 @@ const ToyotaQC = (function() {
       const modal = document.createElement('div');
       modal.id = 'area-modal';
       modal.className = 'hidden absolute inset-0 bg-black/60 z-[999] items-center justify-center p-4';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-label', 'Detalhes da área do reparo');
       modal.innerHTML = `
         <div class="w-full max-w-4xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5 max-h-[80vh] overflow-y-auto">
           <div class="flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 pb-3 border-b border-gray-200 dark:border-gray-800">
@@ -1970,14 +2022,14 @@ const ToyotaQC = (function() {
       const { total, items, count } = State.areaDetails;
       const porcentagem = (total / CONFIG.AREA_LIMIT) * 100;
       
-      let corClasse = 'text-green-600';
-      let bgClasse = 'bg-green-100 dark:bg-green-900/30';
+      let corClasse = 'text-emerald-600 dark:text-emerald-400';
+      let bgClasse = 'bg-emerald-400/70 dark:bg-emerald-800/45';
       if (porcentagem >= 70 && porcentagem < 100) {
         corClasse = 'text-yellow-600 dark:text-yellow-500';
-        bgClasse = 'bg-yellow-100 dark:bg-yellow-900/30';
+        bgClasse = 'bg-amber-400/70 dark:bg-amber-700/45';
       } else if (porcentagem >= 100) {
         corClasse = 'text-red-600 dark:text-red-500';
-        bgClasse = 'bg-red-100 dark:bg-red-900/30';
+        bgClasse = 'bg-rose-400/70 dark:bg-rose-800/45';
       }
       
       let html = `
@@ -2003,30 +2055,31 @@ const ToyotaQC = (function() {
       
       if (items.length > 0) {
         html += `
-          <h4 class="font-bold text-gray-700 dark:text-gray-300 mb-3">Detalhamento por Produto (${count} itens)</h4>
+          <h4 class="font-bold text-gray-700 dark:text-gray-200 mb-3">Detalhamento por Produto (${count} itens)</h4>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead class="bg-gray-100 dark:bg-gray-800">
+            <table class="w-full text-sm area-details-table">
+              <thead class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-100">
                 <tr>
-                  <th class="px-3 py-2 text-left">PN</th>
-                  <th class="px-3 py-2 text-right">Pendente</th>
-                  <th class="px-3 py-2 text-right">Saldo</th>
-                  <th class="px-3 py-2 text-right">Saldo Def</th>
-                  <th class="px-3 py-2 text-right">Área/Pallet</th>
-                  <th class="px-3 py-2 text-right">Empilha</th>
-                  <th class="px-3 py-2 text-right">Peças/Pallet</th>
-                  <th class="px-3 py-2 text-right">Pallets</th>
-                  <th class="px-3 py-2 text-right">Posições</th>
-                  <th class="px-3 py-2 text-right">Área (m²)</th>
+                  <th class="px-3 py-2 text-left font-bold text-gray-700 dark:text-gray-100">PN</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Pendente</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Saldo</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Saldo Def</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Área/Pallet</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Empilha</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Peças/Pallet</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Pallets</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Posições</th>
+                  <th class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-100">Área (m²)</th>
                 </tr>
               </thead>
               <tbody>
         `;
 
         items.forEach(item => {
+          const safePN = Utils.escapeHtml(item.pn);
           html += `
             <tr class="border-b border-gray-200 dark:border-gray-800">
-              <td class="px-3 py-2 font-mono">${item.pn}</td>
+              <td class="px-3 py-2 font-mono">${safePN}</td>
               <td class="px-3 py-2 text-right font-bold">${(item.pendente || 0)}</td>
               <td class="px-3 py-2 text-right">${(item.saldo || 0)}</td>
               <td class="px-3 py-2 text-right">${(item.saldoDef || 0)}</td>
@@ -2407,6 +2460,9 @@ const ToyotaQC = (function() {
       const modal = document.createElement('div');
       modal.id = 'manual-modal';
       modal.className = 'hidden absolute inset-0 bg-black/60 z-[999] items-center justify-center p-4';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-label', 'Manual do sistema');
       modal.innerHTML = `
         <div class="w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5 max-h-[80vh] overflow-y-auto">
           <div class="flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 pb-3 border-b border-gray-200 dark:border-gray-800">
@@ -2537,7 +2593,11 @@ const ToyotaQC = (function() {
       const txtEl = document.getElementById('btn-refresh-text');
       if (!btn || !txtEl) return;
 
-      if (State.manualCooldownLeft > 0) {
+      if (State.isFetching) {
+        btn.classList.add('btn-disabled');
+        btn.disabled = true;
+        txtEl.textContent = 'Atualizando...';
+      } else if (State.manualCooldownLeft > 0) {
         btn.classList.add('btn-disabled');
         btn.disabled = true;
         const mm = Math.floor(State.manualCooldownLeft / 60);
@@ -2548,6 +2608,27 @@ const ToyotaQC = (function() {
         btn.disabled = false;
         txtEl.textContent = 'Atualizar agora';
       }
+    },
+
+    showInitialLoading: () => {
+      if (document.getElementById('initial-loading-overlay')) return;
+      const overlay = document.createElement('div');
+      overlay.id = 'initial-loading-overlay';
+      overlay.className = 'fixed inset-0 z-[1000] bg-gray-50/95 dark:bg-gray-950/95 flex items-center justify-center';
+      overlay.innerHTML = `
+        <div class="text-center">
+          <div class="inline-block h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-toyota-red"></div>
+          <p class="mt-3 text-sm font-semibold text-gray-600 dark:text-gray-300">Carregando dados...</p>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      document.body.setAttribute('aria-busy', 'true');
+    },
+
+    hideInitialLoading: () => {
+      const overlay = document.getElementById('initial-loading-overlay');
+      if (overlay) overlay.remove();
+      document.body.setAttribute('aria-busy', 'false');
     },
 
     renderMenuSummary: () => {
@@ -2594,11 +2675,10 @@ const ToyotaQC = (function() {
       UI.renderMenuCharts();
     },
     
-    // ✅ Renderizar gráficos na página inicial - AGORA RECOLHE O CARD INTEIRO
+    // ✅ Renderizar gráficos na página inicial
     renderMenuCharts: () => {
       if (!State.data || State.data.length === 0) return;
-      
-      // Calcular área do reparo se não tiver sido calculada ainda
+
       if (!State.areaDetails.items || State.areaDetails.items.length === 0) {
         const areaResult = DataManager.computeRepairArea(State.data);
         State.areaDetails = {
@@ -2606,14 +2686,12 @@ const ToyotaQC = (function() {
           lastUpdate: new Date()
         };
       }
-      
-      // Container dos gráficos
+
       const chartsContainer = document.getElementById('menu-charts-container');
       if (!chartsContainer) return;
-      
+
       let html = '';
-      
-      // Card da Área - AGORA OCULTA O CARD INTEIRO QUANDO RECOLHIDO
+
       if (State.menuCards.areaExpanded) {
         html += `
           <div class="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
@@ -2639,32 +2717,8 @@ const ToyotaQC = (function() {
             </div>
           </div>
         `;
-      } else {
-        html += `
-          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                <i class="ph-bold ph-map-trifold text-blue-600"></i>
-                Área do Reparo
-              </h3>
-              <div class="flex items-center gap-2">
-                <button onclick="ToyotaQC.UI.openAreaModal()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30">
-                  <i class="ph-bold ph-arrow-square-out"></i>
-                  Detalhes
-                </button>
-                <button id="toggle-area-card" onclick="ToyotaQC.UI.toggleAreaCard()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
-                  <i class="ph-bold ph-plus-circle"></i>
-                </button>
-              </div>
-            </div>
-            <div class="p-8 text-center">
-              <p class="text-sm text-gray-500">Card recolhido. Clique no <i class="ph-bold ph-plus-circle"></i> para expandir.</p>
-            </div>
-          </div>
-        `;
       }
-      
-      // Card Comparativo - AGORA OCULTA O CARD INTEIRO QUANDO RECOLHIDO
+
       if (State.menuCards.comparativeExpanded) {
         html += `
           <div class="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
@@ -2695,39 +2749,30 @@ const ToyotaQC = (function() {
             </div>
           </div>
         `;
-      } else {
+      }
+
+      if (!State.menuCards.areaExpanded || !State.menuCards.comparativeExpanded) {
         html += `
-          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                <i class="ph-bold ph-chart-bar text-toyota-red"></i>
-                Comparativo: Saldo Defeito vs Scrap
-              </h3>
-              <div class="flex items-center gap-2">
-                <div class="flex items-center gap-1">
-                  <select id="comparative-view" class="text-xs border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
-                    <option value="monthly" ${State.comparativeChart.view === 'monthly' ? 'selected' : ''}>Mensal</option>
-                    <option value="yearly" ${State.comparativeChart.view === 'yearly' ? 'selected' : ''}>Anual</option>
-                  </select>
-                  <select id="comparative-year" class="text-xs border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
-                    <!-- Preenchido via JavaScript -->
-                  </select>
-                </div>
-                <button id="toggle-comparative-card" onclick="ToyotaQC.UI.toggleComparativeCard()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
-                  <i class="ph-bold ph-plus-circle"></i>
-                </button>
-              </div>
-            </div>
-            <div class="p-8 text-center">
-              <p class="text-sm text-gray-500">Card recolhido. Clique no <i class="ph-bold ph-plus-circle"></i> para expandir.</p>
-            </div>
+          <div class="col-span-full bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-3 flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold text-gray-600 dark:text-gray-300">Cards ocultos:</span>
+            ${!State.menuCards.areaExpanded ? `
+              <button onclick="ToyotaQC.UI.toggleAreaCard()" class="text-xs px-2 py-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-1">
+                <i class="ph-bold ph-plus-circle text-blue-600"></i>
+                Área do Reparo
+              </button>
+            ` : ''}
+            ${!State.menuCards.comparativeExpanded ? `
+              <button onclick="ToyotaQC.UI.toggleComparativeCard()" class="text-xs px-2 py-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-1">
+                <i class="ph-bold ph-plus-circle text-toyota-red"></i>
+                Comparativo
+              </button>
+            ` : ''}
           </div>
         `;
       }
-      
+
       chartsContainer.innerHTML = html;
-      
-      // Renderizar gráfico da área apenas se expandido
+
       if (State.menuCards.areaExpanded) {
         const areaCanvas = document.getElementById('chartArea');
         if (areaCanvas) {
@@ -2735,8 +2780,7 @@ const ToyotaQC = (function() {
           State.charts.areaChart = Charts.createAreaChart(ctx, State.areaDetails);
         }
       }
-      
-      // Renderizar gráfico comparativo apenas se expandido
+
       if (State.menuCards.comparativeExpanded) {
         const comparativeCanvas = document.getElementById('chartComparative');
         if (comparativeCanvas) {
@@ -2744,11 +2788,9 @@ const ToyotaQC = (function() {
           State.charts.comparativeChart = Charts.createComparativeChart(ctx, State.data);
         }
       }
-      
-      // Preencher seletor de anos
+
       UI.fillYearSelector();
-      
-      // Re-bind dos eventos dos selects
+
       document.getElementById('comparative-view')?.addEventListener('change', (e) => {
         State.comparativeChart.view = e.target.value;
         UI.updateComparativeChart();
@@ -2933,7 +2975,10 @@ const ToyotaQC = (function() {
       const sel = document.getElementById(id);
       if (!sel) return;
       const first = keepAllOption ? `<option value="">Todos</option>` : '';
-      sel.innerHTML = first + options.map(v => `<option value="${v}">${v}</option>`).join('');
+      sel.innerHTML = first + options.map(v => {
+        const safe = Utils.escapeHtml(v);
+        return `<option value="${safe}">${safe}</option>`;
+      }).join('');
       sel.value = selected || '';
     },
 
@@ -2952,10 +2997,10 @@ const ToyotaQC = (function() {
       document.getElementById('kpi-checked-hint').textContent = parts.length ? `Filtro: ${parts.join(' • ')}` : 'Filtro: Todos';
     },
 
-    checkAlerts: () => {
+    checkAlerts: (precomputedStats = null) => {
       if (!State.lastFilteredData || State.lastFilteredData.length === 0) return;
       
-      const stats = DataManager.computeStats(State.lastFilteredData);
+      const stats = precomputedStats || DataManager.computeStats(State.lastFilteredData);
       
       if (State.previousStats) {
         const currentDefects = stats.defectTypes;
@@ -3030,7 +3075,7 @@ const ToyotaQC = (function() {
         lastUpdate: new Date()
       };
 
-      UI.checkAlerts();
+      UI.checkAlerts(stats);
     },
     
     renderTopDefectAndPNs: (stats, data) => {
@@ -3040,9 +3085,10 @@ const ToyotaQC = (function() {
       const top1Container = document.getElementById('top1-defeito-content');
       if (top1Container) {
         if (topDefect) {
+          const safeTopDefectName = Utils.escapeHtml(topDefect.name);
           top1Container.innerHTML = `
             <div class="text-center">
-              <p class="text-sm font-bold text-toyota-red">${topDefect.name}</p>
+              <p class="text-sm font-bold text-toyota-red">${safeTopDefectName}</p>
               <p class="text-2xl font-black text-gray-800 dark:text-gray-100">${Utils.formatNumber(topDefect.qty)}</p>
               <p class="text-[10px] text-gray-400">Saldo Defeito</p>
             </div>
@@ -3059,7 +3105,7 @@ const ToyotaQC = (function() {
             <div class="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <div class="flex items-center justify-center gap-1 mb-1">
                 <span class="position-badge position-${idx+1}">${idx+1}</span>
-                <span class="font-bold text-sm">${pn.pn}</span>
+                <span class="font-bold text-sm">${Utils.escapeHtml(pn.pn)}</span>
               </div>
               <p class="text-lg font-black text-red-600 dark:text-red-500">${Utils.formatNumber(pn.qty)}</p>
               <p class="text-[9px] text-gray-400">Total Reparos</p>
@@ -3112,6 +3158,11 @@ const ToyotaQC = (function() {
 
       for (const row of pageRows) {
         const tipoDefRaw = Utils.txt(row[COL.tipoDef]);
+        const safeData = Utils.safeTxt(row[COL.data]);
+        const safeTurno = Utils.safeTxt(row[COL.turno]);
+        const safeDie = Utils.safeTxt(row[COL.die]);
+        const safePart = Utils.safeTxt(row[COL.part]);
+        const safeTipoDef = Utils.escapeHtml(tipoDefRaw);
 
         const chec1 = Utils.int(row[COL.chec1]);
         const chec2 = Utils.int(row[COL.chec2]);
@@ -3125,11 +3176,11 @@ const ToyotaQC = (function() {
         const scr2 = Utils.int(row[COL.scr2]);
         const scr3 = Utils.int(row[COL.scr3]);
 
-        const who1 = Utils.txt(row[COL.who1]);
-        const who2 = Utils.txt(row[COL.who2]);
-        const who3 = Utils.txt(row[COL.who3]);
+        const who1 = Utils.safeTxt(row[COL.who1]);
+        const who2 = Utils.safeTxt(row[COL.who2]);
+        const who3 = Utils.safeTxt(row[COL.who3]);
 
-        const scrapTotal = Utils.int(row[COL.scrapTotal]) || (scr1 + scr2 + scr3);
+        const scrapTotal = Utils.getScrapTotal(row);
         const saldo = Utils.int(row[COL.saldo]);
         const saldoDef = Utils.int(row[COL.saldoDef]);
 
@@ -3143,14 +3194,14 @@ const ToyotaQC = (function() {
         tr.className = trClass;
 
         tr.innerHTML = `
-          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 font-mono text-[10px] text-gray-500">${Utils.txt(row[COL.data])}</td>
-          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 text-center"><span class="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-[10px] font-bold">${Utils.txt(row[COL.turno])}</span></td>
-          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 text-center font-mono text-[10px] text-gray-500">${Utils.txt(row[COL.die])}</td>
+          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 font-mono text-[10px] text-gray-500">${safeData}</td>
+          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 text-center"><span class="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-[10px] font-bold">${safeTurno}</span></td>
+          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 text-center font-mono text-[10px] text-gray-500">${safeDie}</td>
           
-          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 font-bold text-gray-700 dark:text-gray-100">${Utils.txt(row[COL.part])}</td>
+          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 font-bold text-gray-700 dark:text-gray-100">${safePart}</td>
           
           <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 text-center font-bold bg-gray-50/50 dark:bg-gray-800">${Utils.int(row[COL.qtdCheck])}</td>
-          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 text-[10px] truncate max-w-[180px]" title="${tipoDefRaw}">${tipoDefRaw}</td>
+          <td class="px-4 py-3 border-r border-gray-200 dark:border-gray-800 text-[10px] truncate max-w-[180px]" title="${safeTipoDef}">${safeTipoDef}</td>
           
           <!-- 1° TURNO -->
           <td class="px-2 py-3 border-r border-gray-200 dark:border-gray-800 text-center ${chec1 ? 'text-blue-400 font-bold' : 'text-gray-400'}">${chec1 || '-'}</td>
@@ -3234,7 +3285,7 @@ const ToyotaQC = (function() {
         totalAll += qty;
       });
 
-      document.getElementById('defect-title').innerHTML = `DEFEITO: <span style="color: #EB0A1E">${defect}</span>`;
+      document.getElementById('defect-title').innerHTML = `DEFEITO: <span style="color: #EB0A1E">${Utils.escapeHtml(defect)}</span>`;
       document.getElementById('defect-total').innerHTML = `<span style="font-size: 14px">${totalAll.toLocaleString()}</span> (Saldo Defeito)`;
 
       const items = Object.keys(countsByPN).map(pn => ({ pn, v: countsByPN[pn] })).sort((a, b) => b.v - a.v);
@@ -3348,3 +3399,6 @@ window.closeBackupModal = () => ToyotaQC.closeBackupModal();
 window.updateComparativeChart = () => ToyotaQC.updateComparativeChart();
 window.toggleAreaCard = () => ToyotaQC.toggleAreaCard();
 window.toggleComparativeCard = () => ToyotaQC.toggleComparativeCard();
+
+
+

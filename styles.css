@@ -975,9 +975,42 @@ tr.filter-match{
       border-bottom-color: #374151;
     }
     
-    .table-fixed-header th:last-child,
-    .table-fixed-header td:last-child {
-      border-right: none;
-    }
-    
-   
+.table-fixed-header th:last-child,
+.table-fixed-header td:last-child {
+  border-right: none;
+}
+
+/* Area modal: corrigir cabeçalho branco no modo dark */
+.dark #area-modal .area-details-table thead,
+.dark #area-modal .area-details-table thead tr,
+.dark #area-modal .area-details-table thead th {
+  background: #111827 !important;
+  color: #ffffff !important;
+}
+
+.dark #area-modal .area-details-table tbody td {
+  color: #e5e7eb;
+}
+
+/* Feedback tátil básico em botões */
+button {
+  transition: transform .08s ease, filter .15s ease;
+}
+
+button:active {
+  transform: translateY(1px) scale(0.99);
+  filter: brightness(0.98);
+}
+
+button:focus-visible {
+  outline: 2px solid rgba(235,10,30,.65);
+  outline-offset: 2px;
+}
+
+/* Contraste dark em textos cinza críticos */
+.dark #screen-menu .text-gray-500,
+.dark #screen-dashboard .text-gray-500,
+.dark #screen-defect .text-gray-500,
+.dark #screen-missingcheck .text-gray-500 {
+  color: #cbd5e1 !important;
+}
