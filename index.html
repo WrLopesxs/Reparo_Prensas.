@@ -58,7 +58,7 @@
       </div>
     </div>
 
-    <!-- 🚨 NOVO: ALERTA ÁREA REPARO -->
+    <!-- 🚨 ALERTA ÁREA REPARO -->
     <div id="area-banner" class="hidden">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div id="area-banner-box"
@@ -99,9 +99,6 @@
         </div>
 
         <div class="flex items-center gap-3">
-          <!-- Versão do sistema -->
-    
-
           <button id="btn-refresh-now"
             class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
             <i class="ph-bold ph-arrows-clockwise"></i>
@@ -149,9 +146,9 @@
 
   <main class="flex-1 overflow-hidden relative">
     <!-- MENU -->
-    <div id="screen-menu" class="absolute inset-0 overflow-y-auto p-6 flex flex-col items-center justify-center transition-opacity duration-300">
+    <div id="screen-menu" class="absolute inset-0 overflow-y-auto p-6 flex flex-col items-center justify-start transition-opacity duration-300">
       <div class="text-center mb-6">
-        <h2 class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Selecione O Projeto que Deseja visualizar  </h2>
+        <h2 class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Selecione o Projeto que Deseja visualizar</h2>
         <p class="text-gray-500 dark:text-gray-400">Escolha um Part Number ou visualize o panorama geral.</p>
       </div>
 
@@ -191,6 +188,11 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Container para os gráficos expansíveis - SERÁ PREENCHIDO PELO JAVASCRIPT -->
+      <div id="menu-charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-7xl mb-8">
+        <!-- Os cards serão inseridos dinamicamente pelo JavaScript -->
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl w-full">
@@ -426,8 +428,6 @@
             <p class="kpi-label">Saldo Defeito</p>
             <h3 class="kpi-value" style="color: #FFB800;" id="kpi-defects">0</h3>
             
- 
-            
             <!-- Alerta visual se > meta -->
             <div id="alert-defects" class="hidden absolute top-2 right-16">
               <span class="flex h-2 w-2">
@@ -449,8 +449,6 @@
           <div class="kpi-card p-5 relative">
             <p class="kpi-label">Scrap</p>
             <h3 class="kpi-value" style="color: #EB0A1E;" id="kpi-scrap">0</h3>
-            
- 
             
             <!-- % scrap -->
             <p class="text-[9px] text-gray-400 mt-1" id="pct-scrap">0% scrap</p>
@@ -655,6 +653,164 @@
           </button>
 
           <p id="login-err" class="hidden text-xs font-bold text-red-600"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL ÁREA DO REPARO -->
+    <div id="area-modal" class="hidden absolute inset-0 bg-black/60 z-[999] items-center justify-center p-4">
+      <div class="w-full max-w-4xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5 max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 pb-3 border-b border-gray-200 dark:border-gray-800">
+          <h3 class="text-lg font-extrabold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <i class="ph-bold ph-map-trifold text-blue-600"></i>
+            Área do Reparo
+          </h3>
+          <button onclick="closeAreaModal()" class="text-gray-500 hover:text-red-600">
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+
+        <div id="area-modal-content" class="mt-4 space-y-4">
+          <!-- Conteúdo será preenchido dinamicamente -->
+          <div class="flex items-center justify-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL BACKUP -->
+    <div id="backup-modal" class="hidden absolute inset-0 bg-black/60 z-[999] items-center justify-center p-4">
+      <div class="w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5 max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 pb-3 border-b border-gray-200 dark:border-gray-800">
+          <h3 class="text-lg font-extrabold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <i class="ph-bold ph-database text-green-600"></i>
+            Gerenciamento de Backup
+          </h3>
+          <button onclick="closeBackupModal()" class="text-gray-500 hover:text-red-600">
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+
+        <div class="mt-4 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button id="backup-create-btn" class="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg hover:bg-green-100 dark:hover:bg-green-950/40 transition flex items-center gap-3">
+              <i class="ph-bold ph-download-simple text-2xl text-green-600"></i>
+              <div class="text-left">
+                <p class="font-bold text-gray-800 dark:text-gray-200">Criar Backup</p>
+                <p class="text-xs text-gray-500">Salvar dados atuais</p>
+              </div>
+            </button>
+            <button id="backup-restore-btn" class="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/40 transition flex items-center gap-3">
+              <i class="ph-bold ph-upload-simple text-2xl text-blue-600"></i>
+              <div class="text-left">
+                <p class="font-bold text-gray-800 dark:text-gray-200">Restaurar Backup</p>
+                <p class="text-xs text-gray-500">Carregar arquivo</p>
+              </div>
+            </button>
+          </div>
+          
+          <div class="border-t border-gray-200 dark:border-gray-800 pt-4">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <i class="ph-bold ph-clock-counter-clockwise"></i>
+                Backups Recentes
+              </h4>
+              <button id="backup-delete-all-btn" class="text-xs text-red-600 hover:text-red-800 flex items-center gap-1" title="Apagar todos da lista">
+                <i class="ph-bold ph-trash"></i>
+                Limpar lista
+              </button>
+            </div>
+            <div id="backup-list" class="space-y-2 max-h-60 overflow-y-auto">
+              <!-- Lista será preenchida dinamicamente -->
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-3 border-t border-gray-200 dark:border-gray-800 flex justify-end">
+          <button onclick="closeBackupModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-lg text-sm font-bold hover:bg-gray-300 dark:hover:bg-gray-700 transition">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL MANUAL -->
+    <div id="manual-modal" class="hidden absolute inset-0 bg-black/60 z-[999] items-center justify-center p-4">
+      <div class="w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5 max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 pb-3 border-b border-gray-200 dark:border-gray-800">
+          <h3 class="text-lg font-extrabold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <i class="ph-bold ph-book text-toyota-red"></i>
+            Manual do Sistema
+          </h3>
+          <button onclick="ToyotaQC.UI.closeManualModal()" class="text-gray-500 hover:text-red-600">
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+
+        <div class="mt-4 space-y-4">
+          <div class="manual-section">
+            <h4>📊 Visão Geral</h4>
+            <p class="text-sm text-gray-600 dark:text-gray-300">Dashboard para monitoramento da qualidade das prensas. Os dados são carregados automaticamente a cada 10 minutos da planilha Google Sheets.</p>
+          </div>
+
+          <div class="manual-section">
+            <h4>🎯 Navegação</h4>
+            <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-300 space-y-1">
+              <li><span class="font-bold">Menu principal</span>: Selecione uma linha de produção específica ou visão geral</li>
+              <li><span class="font-bold">Botão "Abrir Planilha"</span>: Acessa a planilha fonte (requer login Google)</li>
+              <li><span class="font-bold">Botão "Backup"</span>: Cria e gerencia backups dos dados</li>
+              <li><span class="font-bold">Botão "Área"</span>: Visualiza detalhamento da área do reparo</li>
+              <li><span class="font-bold">Clique no Pareto</span>: Clique em qualquer barra do gráfico Pareto para ver detalhes do defeito</li>
+              <li><span class="font-bold">Busca rápida</span>: Pesquise por PN, Die, Defeito ou Quem reparou</li>
+              <li><span class="font-bold">Filtros de saldo</span>: Filtre rapidamente por saldo >0, saldoDef >0 ou scrap >0</li>
+              <li><span class="font-bold">Gráficos na página inicial</span>: Área do reparo e comparativo anual/mensal</li>
+              <li><span class="font-bold">Expandir/Recolher</span>: Use os botões "X" para fechar gráficos e o botão "+" para reabri-los</li>
+            </ul>
+          </div>
+
+          <div class="manual-section">
+            <h4>💾 Backup e Restauração</h4>
+            <p class="text-sm text-gray-600 dark:text-gray-300">O sistema permite:</p>
+            <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-300 mt-1">
+              <li><span class="font-bold">Criar Backup</span>: Salva os dados atuais em arquivo JSON</li>
+              <li><span class="font-bold">Restaurar Backup</span>: Carrega dados de um arquivo JSON salvo anteriormente</li>
+              <li><span class="font-bold">Gerenciar Backups</span>: Visualiza, baixa novamente ou remove backups da lista</li>
+              <li><span class="font-bold">Cache automático</span>: Os 3 backups mais recentes ficam em cache para download rápido</li>
+              <li><span class="font-bold">Atalho</span>: Ctrl + B para abrir o gerenciador de backup</li>
+            </ul>
+          </div>
+
+          <div class="manual-section">
+            <h4>⌨️ Atalhos de Teclado</h4>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+              <div><span class="keyboard-shortcut">Ctrl + R</span> Atualizar dados</div>
+              <div><span class="keyboard-shortcut">Ctrl + L</span> Limpar filtros</div>
+              <div><span class="keyboard-shortcut">Ctrl + B</span> Abrir backup</div>
+              <div><span class="keyboard-shortcut">Esc</span> Fechar modais</div>
+              <div><span class="keyboard-shortcut">?</span> Abrir este manual</div>
+              <div><span class="keyboard-shortcut">Ctrl + H</span> Abrir ajuda</div>
+            </div>
+          </div>
+
+          <div class="manual-section">
+            <h4>📈 KPIs de Gestão</h4>
+            <p class="text-sm text-gray-600 dark:text-gray-300">O dashboard mostra:</p>
+            <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-300 mt-1">
+              <li><span class="font-bold">Top 1 defeito</span> do dia/semana com impacto</li>
+              <li><span class="font-bold">Top 3 PNs críticos</span> (base saldo defeito)</li>
+              <li><span class="font-bold">% retrabalho</span> = reparos / checados</li>
+              <li><span class="font-bold">% scrap</span> = scrap / checados</li>
+              <li><span class="font-bold">Área do reparo</span> com detalhamento por produto</li>
+              <li><span class="font-bold">Gráfico comparativo</span>: Saldo Defeito vs Scrap (mensal/anual)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-3 border-t border-gray-200 dark:border-gray-800 flex justify-end">
+          <button onclick="ToyotaQC.UI.closeManualModal()" class="px-4 py-2 bg-toyota-red text-white rounded-lg text-sm font-bold hover:brightness-95 transition">
+            Entendi
+          </button>
         </div>
       </div>
     </div>

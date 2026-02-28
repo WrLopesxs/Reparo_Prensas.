@@ -4,13 +4,13 @@ const ToyotaQC = (function() {
   // ==================== CONFIGURAÇÕES ====================
   const CONFIG = {
     SHEET_ID: '1y8kcWOCFCXeHHtC_MFHBD2M5zYasY6A8K4MW_Qqo3V0',
-  GID: '914910661',
-  UPDATE_INTERVAL: 600,
-  CACHE_TIME: 300000,
-  TOP_PNS: 15,
-  MANUAL_COOLDOWN: 60,
-  SHEET_OPEN_URL: 'https://docs.google.com/spreadsheets/d/1y8kcWOCFCXeHHtC_MFHBD2M5zYasY6A8K4MW_Qqo3V0/edit?gid=914910661#gid=914910661',
-  VERSION: 'v1.6.0',
+    GID: '914910661',
+    UPDATE_INTERVAL: 600,
+    CACHE_TIME: 300000,
+    TOP_PNS: 15,
+    MANUAL_COOLDOWN: 60,
+    SHEET_OPEN_URL: 'https://docs.google.com/spreadsheets/d/1y8kcWOCFCXeHHtC_MFHBD2M5zYasY6A8K4MW_Qqo3V0/edit?gid=914910661#gid=914910661',
+    VERSION: 'v1.7.0',
     // Limite para área do reparo
     AREA_LIMIT: 84, // m²
     
@@ -99,21 +99,35 @@ const ToyotaQC = (function() {
       spike: null
     },
     
-    // NOVO: Armazenar dados detalhados da área
+    // Estado para controle dos cards na página inicial
+    menuCards: {
+      areaExpanded: true,      // Card da área começa expandido
+      comparativeExpanded: true // Card comparativo começa expandido
+    },
+    
+    // Armazenar dados detalhados da área
     areaDetails: {
       total: 0,
       items: [],
       lastUpdate: null
     },
     
+    // Configuração do gráfico comparativo
+    comparativeChart: {
+      view: 'monthly', // 'monthly' ou 'yearly'
+      year: new Date().getFullYear()
+    },
+    
     charts: {
       pareto: null,
       status: null,
       defectByPN: null,
-      missingCheck: null
+      missingCheck: null,
+      areaChart: null,
+      comparativeChart: null
     },
     
-    // NOVO: Estado para backups
+    // Estado para backups
     backups: {
       list: [],
       isRestoring: false
@@ -247,7 +261,7 @@ const ToyotaQC = (function() {
       return currVal / prevVal > CONFIG.SPIKE_THRESHOLD;
     },
     
-    // NOVO: Gerar nome de arquivo para backup
+    // Gerar nome de arquivo para backup
     generateBackupFileName: () => {
       const now = new Date();
       const date = `${now.getFullYear()}${Utils.pad2(now.getMonth()+1)}${Utils.pad2(now.getDate())}`;
@@ -255,7 +269,7 @@ const ToyotaQC = (function() {
       return `ToyotaQC_Backup_${date}_${time}.json`;
     },
     
-    // NOVO: Salvar arquivo no computador
+    // Salvar arquivo no computador
     downloadFile: (content, fileName, mimeType = 'application/json') => {
       const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
@@ -268,7 +282,7 @@ const ToyotaQC = (function() {
       URL.revokeObjectURL(url);
     },
     
-    // NOVO: Carregar arquivo do computador
+    // Carregar arquivo do computador
     loadFile: (callback, accept = '.json') => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -286,11 +300,20 @@ const ToyotaQC = (function() {
       input.click();
     },
     
-    // NOVO: Formatar tamanho do arquivo
+    // Formatar tamanho do arquivo
     formatFileSize: (bytes) => {
       if (bytes < 1024) return bytes + ' B';
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
       return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    },
+    
+    // Obter nome do mês
+    getMonthName: (month) => {
+      const months = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      return months[month - 1] || month;
     }
   };
 
@@ -697,6 +720,259 @@ const ToyotaQC = (function() {
           }
         }
       });
+    },
+
+    // Criar gráfico da área do reparo - REDUZIDO
+    createAreaChart: (ctx, areaData) => {
+      if (State.charts.areaChart) State.charts.areaChart.destroy();
+
+      const topItems = areaData.items.slice(0, 6); // Reduzido de 8 para 6 itens
+      const labels = topItems.map(item => item.pn.length > 10 ? item.pn.substring(0, 8) + '...' : item.pn);
+      const values = topItems.map(item => item.areaParcial);
+      const total = areaData.total;
+      const porcentagem = (total / CONFIG.AREA_LIMIT) * 100;
+
+      let corBarra = '#3B82F6'; // Azul padrão
+      if (porcentagem >= 70 && porcentagem < 100) corBarra = '#EAB308'; // Amarelo
+      if (porcentagem >= 100) corBarra = '#EF4444'; // Vermelho
+
+      return new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Área Ocupada (m²)',
+            data: values,
+            backgroundColor: corBarra,
+            borderRadius: 8,
+            barPercentage: 0.6,
+            categoryPercentage: 0.7,
+            maxBarThickness: 40 // Limitado
+          }]
+        },
+        options: {
+          ...Charts.baseConfig,
+          plugins: {
+            ...Charts.baseConfig.plugins,
+            legend: { display: false },
+            title: {
+              display: true,
+              text: `Área: ${total.toFixed(1)} m² (${porcentagem.toFixed(1)}%)`,
+              color: Charts.getTextColor(),
+              font: { size: 11, weight: 'bold' }
+            },
+            datalabels: {
+              ...Charts.baseConfig.plugins.datalabels,
+              anchor: 'end',
+              align: 'end',
+              offset: 4,
+              backgroundColor: 'transparent',
+              color: () => Charts.getTextColor(),
+              font: { weight: 'bold', size: 9 },
+              formatter: (value) => value.toFixed(1) + ' m²',
+              display: (context) => {
+                const value = context.dataset.data[context.dataIndex];
+                return value > 0;
+              }
+            }
+          },
+          scales: {
+            x: { 
+              grid: { display: false },
+              ticks: { color: Charts.getTextColor(), font: { size: 9 } }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: Charts.getGridColor() },
+              ticks: { color: Charts.getTextColor(), font: { size: 9 } }
+            }
+          }
+        }
+      });
+    },
+
+    // Criar gráfico comparativo (Saldo Defeito vs Scrap) - CORRIGIDO
+    createComparativeChart: (ctx, data) => {
+      if (State.charts.comparativeChart) State.charts.comparativeChart.destroy();
+
+      const isMonthly = State.comparativeChart.view === 'monthly';
+      const currentYear = State.comparativeChart.year;
+      
+      let labels = [];
+      let saldoDefData = [];
+      let scrapData = [];
+
+      if (isMonthly) {
+        // Dados mensais do ano selecionado
+        labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        
+        // Inicializar arrays com zeros
+        saldoDefData = new Array(12).fill(0);
+        scrapData = new Array(12).fill(0);
+        
+        // Preencher com dados do ano selecionado
+        data.forEach(row => {
+          const date = Utils.parseDateBR(row[COL.data]);
+          if (!date || date.getFullYear() !== currentYear) return;
+          
+          const month = date.getMonth(); // 0-11
+          const saldoDef = Utils.int(row[COL.saldoDef]);
+          const scrap = Utils.int(row[COL.scrapTotal]) || 
+                       (Utils.int(row[COL.scr1]) + Utils.int(row[COL.scr2]) + Utils.int(row[COL.scr3]));
+          
+          saldoDefData[month] += saldoDef;
+          scrapData[month] += scrap;
+        });
+      } else {
+        // Dados anuais (apenas anos que existem nos dados)
+        const years = new Set();
+        data.forEach(row => {
+          const date = Utils.parseDateBR(row[COL.data]);
+          if (date) {
+            const year = date.getFullYear();
+            // Filtrar anos válidos (entre 2000 e 2100)
+            if (year >= 2000 && year <= 2100) {
+              years.add(year);
+            }
+          }
+        });
+        
+        const sortedYears = Array.from(years).sort((a, b) => a - b); // Ordem crescente
+        
+        // Se não houver anos válidos, mostrar mensagem
+        if (sortedYears.length === 0) {
+          labels = ['Sem dados'];
+          saldoDefData = [0];
+          scrapData = [0];
+        } else {
+          labels = sortedYears.map(y => y.toString());
+          saldoDefData = new Array(sortedYears.length).fill(0);
+          scrapData = new Array(sortedYears.length).fill(0);
+          
+          data.forEach(row => {
+            const date = Utils.parseDateBR(row[COL.data]);
+            if (!date) return;
+            
+            const year = date.getFullYear();
+            // Filtrar anos válidos
+            if (year < 2000 || year > 2100) return;
+            
+            const yearIndex = sortedYears.indexOf(year);
+            if (yearIndex === -1) return;
+            
+            const saldoDef = Utils.int(row[COL.saldoDef]);
+            const scrap = Utils.int(row[COL.scrapTotal]) || 
+                         (Utils.int(row[COL.scr1]) + Utils.int(row[COL.scr2]) + Utils.int(row[COL.scr3]));
+            
+            saldoDefData[yearIndex] += saldoDef;
+            scrapData[yearIndex] += scrap;
+          });
+        }
+      }
+
+      const maxValue = Math.max(...saldoDefData, ...scrapData, 1); // Garantir que não seja zero
+
+      return new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Saldo Defeito',
+              data: saldoDefData,
+              backgroundColor: '#EB0A1E',
+              borderRadius: 8,
+              barPercentage: 0.35,
+              categoryPercentage: 0.9,
+              maxBarThickness: 50
+            },
+            {
+              label: 'Scrap',
+              data: scrapData,
+              backgroundColor: '#1E293B',
+              borderRadius: 8,
+              barPercentage: 0.35,
+              categoryPercentage: 0.9,
+              maxBarThickness: 50
+            }
+          ]
+        },
+        options: {
+          ...Charts.baseConfig,
+          layout: {
+            padding: {
+              top: 50,
+              bottom: 30,
+              left: 15,
+              right: 50
+            }
+          },
+          plugins: {
+            ...Charts.baseConfig.plugins,
+            title: {
+              display: true,
+              text: isMonthly ? `Comparativo Mensal - ${currentYear}` : 'Comparativo Anual',
+              color: Charts.getTextColor(),
+              font: { size: 13, weight: 'bold' },
+              padding: { bottom: 25 }
+            },
+            legend: {
+              ...Charts.baseConfig.plugins.legend,
+              position: 'top',
+              align: 'center',
+              labels: {
+                ...Charts.baseConfig.plugins.legend.labels,
+                padding: 20,
+                usePointStyle: true,
+                pointStyle: 'rectRounded',
+                font: { size: 11 }
+              }
+            },
+            datalabels: {
+              ...Charts.baseConfig.plugins.datalabels,
+              anchor: 'end',
+              align: 'end',
+              offset: 10,
+              backgroundColor: 'transparent',
+              color: () => Charts.getTextColor(),
+              font: { weight: 'bold', size: 10 },
+              formatter: (value) => value > 0 ? value.toLocaleString('pt-BR') : '',
+              display: (context) => {
+                const value = context.dataset.data[context.dataIndex];
+                return value > 0;
+              }
+            }
+          },
+          scales: {
+            x: { 
+              grid: { display: false },
+              ticks: { 
+                color: Charts.getTextColor(), 
+                font: { size: 11, weight: '600' },
+                maxRotation: 45,
+                minRotation: 30
+              }
+            },
+            y: {
+              beginAtZero: true,
+              max: maxValue * 1.25,
+              grid: { color: Charts.getGridColor(), drawBorder: false },
+              ticks: { 
+                color: Charts.getTextColor(), 
+                font: { size: 10 },
+                stepSize: Math.ceil(maxValue / 6) || 1
+              },
+              title: {
+                display: true,
+                text: 'Quantidade',
+                color: Charts.getTextColor(),
+                font: { size: 11, weight: 'bold' },
+                padding: { bottom: 15 }
+              }
+            }
+          }
+        }
+      });
     }
   };
 
@@ -790,6 +1066,13 @@ const ToyotaQC = (function() {
       UI.renderMenuSummary();
       UI.updateScreen();
       UI.checkAlerts();
+      
+      // Calcular área do reparo para o gráfico da página inicial
+      const areaResult = DataManager.computeRepairArea(State.data);
+      State.areaDetails = {
+        ...areaResult,
+        lastUpdate: new Date()
+      };
     },
 
     matchesFamily: (rowPN, familyList) => {
@@ -955,101 +1238,116 @@ const ToyotaQC = (function() {
       return defects[0] || null;
     },
     
-      getTopPNs: (data) => {
-    const pnMap = {};
-    
-    for (const row of data) {
-      const pn = Utils.txt(row[COL.part]);
-      if (!pn || pn === '-') continue;
+    getTopPNs: (data) => {
+      const pnMap = {};
       
-      // SOMA DOS REPARADOS (3 turnos) - isso que define criticidade
-      const rep1 = Utils.int(row[COL.rep1]);
-      const rep2 = Utils.int(row[COL.rep2]);
-      const rep3 = Utils.int(row[COL.rep3]);
-      const totalReparos = rep1 + rep2 + rep3;
+      for (const row of data) {
+        const pn = Utils.txt(row[COL.part]);
+        if (!pn || pn === '-') continue;
+        
+        // SOMA DOS REPARADOS (3 turnos) - isso que define criticidade
+        const rep1 = Utils.int(row[COL.rep1]);
+        const rep2 = Utils.int(row[COL.rep2]);
+        const rep3 = Utils.int(row[COL.rep3]);
+        const totalReparos = rep1 + rep2 + rep3;
+        
+        // Só considera se teve reparo
+        if (totalReparos <= 0) continue;
+        
+        pnMap[pn] = (pnMap[pn] || 0) + totalReparos;
+      }
       
-      // Só considera se teve reparo
-      if (totalReparos <= 0) continue;
-      
-      pnMap[pn] = (pnMap[pn] || 0) + totalReparos;
-    }
-    
-    return Object.entries(pnMap)
-      .map(([pn, qty]) => ({ pn, qty }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 3);
-  },
+      return Object.entries(pnMap)
+        .map(([pn, qty]) => ({ pn, qty }))
+        .sort((a, b) => b.qty - a.qty)
+        .slice(0, 3);
+    },
     
     // Função para calcular área do reparo e salvar detalhes
-  computeRepairArea: (data) => {
-  let totalArea = 0;
-  let linhasProcessadas = 0;
-  let items = [];
+    computeRepairArea: (data) => {
+      let totalArea = 0;
+      let linhasProcessadas = 0;
+      let items = [];
 
-  for (const row of data) {
-    // ✅ AGORA: considerar APENAS saldo (checagem)
-    const saldo = Utils.int(row[COL.saldo]);
+      for (const row of data) {
+        // Considerar APENAS saldo (checagem)
+        const saldo = Utils.int(row[COL.saldo]);
 
-    // Só entra no "botão da área" quem tiver saldo > 0
-    if (saldo <= 0) continue;
+        // Só entra no cálculo quem tiver saldo > 0
+        if (saldo <= 0) continue;
 
-    const pn = Utils.txt(row[COL.part]);
+        const pn = Utils.txt(row[COL.part]);
+        const saldoDef = Utils.int(row[COL.saldoDef]);
 
-    // (Opcional) ainda leio saldoDef só pra mostrar no modal, mas NÃO conta pra cálculo/filtro
-    const saldoDef = Utils.int(row[COL.saldoDef]);
+        // Converte os valores
+        let areaPallet = Utils.float(row[COL.areaPallet]);
+        let empilha = Utils.int(row[COL.empilhaMax]);
+        let pecasPorPallet = Utils.int(row[COL.pecasPorPallet]);
 
-    // Converte os valores
-    let areaPallet = Utils.float(row[COL.areaPallet]);
-    let empilha = Utils.int(row[COL.empilhaMax]);
-    let pecasPorPallet = Utils.int(row[COL.pecasPorPallet]);
+        // Se não encontrar, usa valores padrão
+        if (!empilha || empilha <= 0) empilha = 1;
+        if (!pecasPorPallet || pecasPorPallet <= 0) pecasPorPallet = 1;
 
-    // Se não encontrar, usa valores padrão
-    if (!empilha || empilha <= 0) empilha = 1;
-    if (!pecasPorPallet || pecasPorPallet <= 0) pecasPorPallet = 1;
+        // Valida se tem área do pallet
+        if (!areaPallet || areaPallet <= 0) continue;
 
-    // Valida se tem área do pallet
-    if (!areaPallet || areaPallet <= 0) continue;
+        // pendente = saldo (somente)
+        const pendente = saldo;
 
-    // ✅ pendente = saldo (somente)
-    const pendente = saldo;
+        // Pallets necessários
+        const palletsNecessarios = Math.ceil(pendente / pecasPorPallet);
 
-    // Pallets necessários (✅ usa pendente baseado só em saldo)
-    const palletsNecessarios = Math.ceil(pendente / pecasPorPallet);
+        // Posições no chão
+        const posicoesChao = Math.ceil(palletsNecessarios / empilha);
 
-    // Posições no chão
-    const posicoesChao = Math.ceil(palletsNecessarios / empilha);
+        // Área parcial
+        const areaParcial = posicoesChao * areaPallet;
 
-    // Área parcial
-    const areaParcial = posicoesChao * areaPallet;
+        // Salva detalhes para o modal
+        items.push({
+          pn,
+          saldo,
+          saldoDef,
+          pendente,
+          areaPallet,
+          empilha,
+          pecasPorPallet,
+          palletsNecessarios,
+          posicoesChao,
+          areaParcial
+        });
 
-    // Salva detalhes para o modal
-    items.push({
-      pn,
-      saldo,
-      saldoDef,   // só informativo
-      pendente,   // agora é igual ao saldo
+        totalArea += areaParcial;
+        linhasProcessadas++;
+      }
 
-      areaPallet,
-      empilha,
-      pecasPorPallet,
-      palletsNecessarios,
-      posicoesChao,
-      areaParcial
-    });
+      // Ordena por maior área
+      items.sort((a, b) => b.areaParcial - a.areaParcial);
 
-    totalArea += areaParcial;
-    linhasProcessadas++;
-  }
-
-  // Ordena por maior área
-  items.sort((a, b) => b.areaParcial - a.areaParcial);
-
-  return {
-    total: totalArea,
-    items: items,
-    count: linhasProcessadas
-  };
-},
+      return {
+        total: totalArea,
+        items: items,
+        count: linhasProcessadas
+      };
+    },
+    
+    // ✅ CORRIGIDO: Obter anos disponíveis para o gráfico comparativo
+    getAvailableYears: () => {
+      const years = new Set();
+      
+      State.data.forEach(row => {
+        const date = Utils.parseDateBR(row[COL.data]);
+        if (date) {
+          const year = date.getFullYear();
+          // Filtrar anos válidos (entre 2000 e 2100)
+          if (year >= 2000 && year <= 2100) {
+            years.add(year);
+          }
+        }
+      });
+      
+      return Array.from(years).sort((a, b) => b - a); // Ordem decrescente
+    },
     
     // ========== FUNÇÕES DE BACKUP ==========
     
@@ -1333,6 +1631,14 @@ const ToyotaQC = (function() {
       // Carregar lista de backups
       State.backups.list = DataManager.getBackupList();
       
+      // Inicializar ano do gráfico comparativo
+      const availableYears = DataManager.getAvailableYears();
+      if (availableYears.length > 0) {
+        State.comparativeChart.year = availableYears[0];
+      } else {
+        State.comparativeChart.year = new Date().getFullYear();
+      }
+      
       Utils.checkScreenSize();
       window.addEventListener('resize', Utils.debounce(Utils.checkScreenSize, 150));
 
@@ -1358,6 +1664,17 @@ const ToyotaQC = (function() {
       UI.startUpdateCycle();
       
       console.log(`🚀 Toyota Quality Control ${CONFIG.VERSION} iniciado`);
+    },
+    
+    // Funções para controlar os cards da página inicial
+    toggleAreaCard: () => {
+      State.menuCards.areaExpanded = !State.menuCards.areaExpanded;
+      UI.renderMenuCharts();
+    },
+    
+    toggleComparativeCard: () => {
+      State.menuCards.comparativeExpanded = !State.menuCards.comparativeExpanded;
+      UI.renderMenuCharts();
     },
     
     // Criar botões de backup - AGORA SÓ CRIA QUANDO NECESSÁRIO
@@ -1685,54 +2002,52 @@ const ToyotaQC = (function() {
       `;
       
       if (items.length > 0) {
-  html += `
-    <h4 class="font-bold text-gray-700 dark:text-gray-300 mb-3">Detalhamento por Produto (${count} itens)</h4>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-100 dark:bg-gray-800">
-          <tr>
-            <th class="px-3 py-2 text-left">PN</th>
-            <th class="px-3 py-2 text-right">Pendente</th>
-            <th class="px-3 py-2 text-right">Saldo</th>
-            <th class="px-3 py-2 text-right">Saldo Def</th>
-            <th class="px-3 py-2 text-right">Área/Pallet</th>
-            <th class="px-3 py-2 text-right">Empilha</th>
-            <th class="px-3 py-2 text-right">Peças/Pallet</th>
-            <th class="px-3 py-2 text-right">Pallets</th>
-            <th class="px-3 py-2 text-right">Posições</th>
-            <th class="px-3 py-2 text-right">Área (m²)</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
+        html += `
+          <h4 class="font-bold text-gray-700 dark:text-gray-300 mb-3">Detalhamento por Produto (${count} itens)</h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-100 dark:bg-gray-800">
+                <tr>
+                  <th class="px-3 py-2 text-left">PN</th>
+                  <th class="px-3 py-2 text-right">Pendente</th>
+                  <th class="px-3 py-2 text-right">Saldo</th>
+                  <th class="px-3 py-2 text-right">Saldo Def</th>
+                  <th class="px-3 py-2 text-right">Área/Pallet</th>
+                  <th class="px-3 py-2 text-right">Empilha</th>
+                  <th class="px-3 py-2 text-right">Peças/Pallet</th>
+                  <th class="px-3 py-2 text-right">Pallets</th>
+                  <th class="px-3 py-2 text-right">Posições</th>
+                  <th class="px-3 py-2 text-right">Área (m²)</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
 
-  items.forEach(item => {
-    html += `
-      <tr class="border-b border-gray-200 dark:border-gray-800">
-        <td class="px-3 py-2 font-mono">${item.pn}</td>
+        items.forEach(item => {
+          html += `
+            <tr class="border-b border-gray-200 dark:border-gray-800">
+              <td class="px-3 py-2 font-mono">${item.pn}</td>
+              <td class="px-3 py-2 text-right font-bold">${(item.pendente || 0)}</td>
+              <td class="px-3 py-2 text-right">${(item.saldo || 0)}</td>
+              <td class="px-3 py-2 text-right">${(item.saldoDef || 0)}</td>
+              <td class="px-3 py-2 text-right">${item.areaPallet.toFixed(2)}</td>
+              <td class="px-3 py-2 text-right">${item.empilha}</td>
+              <td class="px-3 py-2 text-right">${item.pecasPorPallet}</td>
+              <td class="px-3 py-2 text-right">${item.palletsNecessarios}</td>
+              <td class="px-3 py-2 text-right">${item.posicoesChao}</td>
+              <td class="px-3 py-2 text-right font-bold ${item.areaParcial > 10 ? 'text-red-600' : ''}">${item.areaParcial.toFixed(2)}</td>
+            </tr>
+          `;
+        });
 
-        <td class="px-3 py-2 text-right font-bold">${(item.pendente || 0)}</td>
-        <td class="px-3 py-2 text-right">${(item.saldo || 0)}</td>
-        <td class="px-3 py-2 text-right">${(item.saldoDef || 0)}</td>
-
-        <td class="px-3 py-2 text-right">${item.areaPallet.toFixed(2)}</td>
-        <td class="px-3 py-2 text-right">${item.empilha}</td>
-        <td class="px-3 py-2 text-right">${item.pecasPorPallet}</td>
-        <td class="px-3 py-2 text-right">${item.palletsNecessarios}</td>
-        <td class="px-3 py-2 text-right">${item.posicoesChao}</td>
-        <td class="px-3 py-2 text-right font-bold ${item.areaParcial > 10 ? 'text-red-600' : ''}">${item.areaParcial.toFixed(2)}</td>
-      </tr>
-    `;
-  });
-
-  html += `
-        </tbody>
-      </table>
-    </div>
-  `;
-} else {
-  html += '<p class="text-center text-gray-500 py-8">Nenhum produto com pendência</p>';
-}
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      } else {
+        html += '<p class="text-center text-gray-500 py-8">Nenhum produto com pendência</p>';
+      }
       content.innerHTML = html;
     },
     
@@ -1919,6 +2234,8 @@ const ToyotaQC = (function() {
       updateChartColors(State.charts.status);
       updateChartColors(State.charts.defectByPN);
       updateChartColors(State.charts.missingCheck);
+      updateChartColors(State.charts.areaChart);
+      updateChartColors(State.charts.comparativeChart);
     },
 
     bindEvents: () => {
@@ -1981,6 +2298,21 @@ const ToyotaQC = (function() {
 
       document.getElementById('missingcheck-sort')?.addEventListener('change', () => {
         if (State.currentScreen === 'missingcheck') UI.renderMissingCheckScreen();
+      });
+
+      // Eventos para os botões de expandir/recolher
+      document.getElementById('toggle-area-card')?.addEventListener('click', () => UI.toggleAreaCard());
+      document.getElementById('toggle-comparative-card')?.addEventListener('click', () => UI.toggleComparativeCard());
+
+      // Eventos para o gráfico comparativo
+      document.getElementById('comparative-view')?.addEventListener('change', (e) => {
+        State.comparativeChart.view = e.target.value;
+        UI.updateComparativeChart();
+      });
+
+      document.getElementById('comparative-year')?.addEventListener('change', (e) => {
+        State.comparativeChart.year = parseInt(e.target.value);
+        UI.updateComparativeChart();
       });
     },
 
@@ -2103,6 +2435,8 @@ const ToyotaQC = (function() {
                 <li><span class="font-bold">Clique no Pareto</span>: Clique em qualquer barra do gráfico Pareto para ver detalhes do defeito</li>
                 <li><span class="font-bold">Busca rápida</span>: Pesquise por PN, Die, Defeito ou Quem reparou</li>
                 <li><span class="font-bold">Filtros de saldo</span>: Filtre rapidamente por saldo >0, saldoDef >0 ou scrap >0</li>
+                <li><span class="font-bold">Gráficos na página inicial</span>: Área do reparo e comparativo anual/mensal</li>
+                <li><span class="font-bold">Expandir/Recolher</span>: Use os botões "X" para fechar gráficos e o botão "+" para reabri-los</li>
               </ul>
             </div>
 
@@ -2139,10 +2473,9 @@ const ToyotaQC = (function() {
                 <li><span class="font-bold">% retrabalho</span> = reparos / checados</li>
                 <li><span class="font-bold">% scrap</span> = scrap / checados</li>
                 <li><span class="font-bold">Área do reparo</span> com detalhamento por produto</li>
+                <li><span class="font-bold">Gráfico comparativo</span>: Saldo Defeito vs Scrap (mensal/anual)</li>
               </ul>
             </div>
-
-          
 
           <div class="mt-6 pt-3 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
             <span class="text-[10px] text-gray-400">Versão: ${CONFIG.VERSION}</span>
@@ -2233,7 +2566,10 @@ const ToyotaQC = (function() {
         if (saldo > 0) {
           saldoTotal += saldo;
           const d = Utils.parseDateBR(row[COL.data]);
-          if (d) { if (!minD || d < minD) minD = d; if (!maxD || d > maxD) maxD = d; }
+          if (d) { 
+            if (!minD || d < minD) minD = d; 
+            if (!maxD || d > maxD) maxD = d; 
+          }
         }
         if (saldoDef > 0) saldoDefTotal += saldoDef;
       }
@@ -2253,6 +2589,204 @@ const ToyotaQC = (function() {
         rangeEl.textContent = saldoTotal > 0 ? 'Período: (sem data válida)' : 'Sem pendências';
         if (rangeDetailsEl) rangeDetailsEl.textContent = 'min: -- | max: --';
       }
+      
+      // Renderizar gráficos da página inicial
+      UI.renderMenuCharts();
+    },
+    
+    // ✅ Renderizar gráficos na página inicial - AGORA RECOLHE O CARD INTEIRO
+    renderMenuCharts: () => {
+      if (!State.data || State.data.length === 0) return;
+      
+      // Calcular área do reparo se não tiver sido calculada ainda
+      if (!State.areaDetails.items || State.areaDetails.items.length === 0) {
+        const areaResult = DataManager.computeRepairArea(State.data);
+        State.areaDetails = {
+          ...areaResult,
+          lastUpdate: new Date()
+        };
+      }
+      
+      // Container dos gráficos
+      const chartsContainer = document.getElementById('menu-charts-container');
+      if (!chartsContainer) return;
+      
+      let html = '';
+      
+      // Card da Área - AGORA OCULTA O CARD INTEIRO QUANDO RECOLHIDO
+      if (State.menuCards.areaExpanded) {
+        html += `
+          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <i class="ph-bold ph-map-trifold text-blue-600"></i>
+                Área do Reparo
+              </h3>
+              <div class="flex items-center gap-2">
+                <button onclick="ToyotaQC.UI.openAreaModal()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                  <i class="ph-bold ph-arrow-square-out"></i>
+                  Detalhes
+                </button>
+                <button id="toggle-area-card" onclick="ToyotaQC.UI.toggleAreaCard()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
+                  <i class="ph-bold ph-minus-circle"></i>
+                </button>
+              </div>
+            </div>
+            <div class="p-3">
+              <div class="h-48">
+                <canvas id="chartArea"></canvas>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <i class="ph-bold ph-map-trifold text-blue-600"></i>
+                Área do Reparo
+              </h3>
+              <div class="flex items-center gap-2">
+                <button onclick="ToyotaQC.UI.openAreaModal()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                  <i class="ph-bold ph-arrow-square-out"></i>
+                  Detalhes
+                </button>
+                <button id="toggle-area-card" onclick="ToyotaQC.UI.toggleAreaCard()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
+                  <i class="ph-bold ph-plus-circle"></i>
+                </button>
+              </div>
+            </div>
+            <div class="p-8 text-center">
+              <p class="text-sm text-gray-500">Card recolhido. Clique no <i class="ph-bold ph-plus-circle"></i> para expandir.</p>
+            </div>
+          </div>
+        `;
+      }
+      
+      // Card Comparativo - AGORA OCULTA O CARD INTEIRO QUANDO RECOLHIDO
+      if (State.menuCards.comparativeExpanded) {
+        html += `
+          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <i class="ph-bold ph-chart-bar text-toyota-red"></i>
+                Comparativo: Saldo Defeito vs Scrap
+              </h3>
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1">
+                  <select id="comparative-view" class="text-xs border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
+                    <option value="monthly" ${State.comparativeChart.view === 'monthly' ? 'selected' : ''}>Mensal</option>
+                    <option value="yearly" ${State.comparativeChart.view === 'yearly' ? 'selected' : ''}>Anual</option>
+                  </select>
+                  <select id="comparative-year" class="text-xs border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
+                    <!-- Preenchido via JavaScript -->
+                  </select>
+                </div>
+                <button id="toggle-comparative-card" onclick="ToyotaQC.UI.toggleComparativeCard()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
+                  <i class="ph-bold ph-minus-circle"></i>
+                </button>
+              </div>
+            </div>
+            <div class="p-3">
+              <div class="h-80">
+                <canvas id="chartComparative"></canvas>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <i class="ph-bold ph-chart-bar text-toyota-red"></i>
+                Comparativo: Saldo Defeito vs Scrap
+              </h3>
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1">
+                  <select id="comparative-view" class="text-xs border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
+                    <option value="monthly" ${State.comparativeChart.view === 'monthly' ? 'selected' : ''}>Mensal</option>
+                    <option value="yearly" ${State.comparativeChart.view === 'yearly' ? 'selected' : ''}>Anual</option>
+                  </select>
+                  <select id="comparative-year" class="text-xs border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
+                    <!-- Preenchido via JavaScript -->
+                  </select>
+                </div>
+                <button id="toggle-comparative-card" onclick="ToyotaQC.UI.toggleComparativeCard()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
+                  <i class="ph-bold ph-plus-circle"></i>
+                </button>
+              </div>
+            </div>
+            <div class="p-8 text-center">
+              <p class="text-sm text-gray-500">Card recolhido. Clique no <i class="ph-bold ph-plus-circle"></i> para expandir.</p>
+            </div>
+          </div>
+        `;
+      }
+      
+      chartsContainer.innerHTML = html;
+      
+      // Renderizar gráfico da área apenas se expandido
+      if (State.menuCards.areaExpanded) {
+        const areaCanvas = document.getElementById('chartArea');
+        if (areaCanvas) {
+          const ctx = areaCanvas.getContext('2d');
+          State.charts.areaChart = Charts.createAreaChart(ctx, State.areaDetails);
+        }
+      }
+      
+      // Renderizar gráfico comparativo apenas se expandido
+      if (State.menuCards.comparativeExpanded) {
+        const comparativeCanvas = document.getElementById('chartComparative');
+        if (comparativeCanvas) {
+          const ctx = comparativeCanvas.getContext('2d');
+          State.charts.comparativeChart = Charts.createComparativeChart(ctx, State.data);
+        }
+      }
+      
+      // Preencher seletor de anos
+      UI.fillYearSelector();
+      
+      // Re-bind dos eventos dos selects
+      document.getElementById('comparative-view')?.addEventListener('change', (e) => {
+        State.comparativeChart.view = e.target.value;
+        UI.updateComparativeChart();
+      });
+
+      document.getElementById('comparative-year')?.addEventListener('change', (e) => {
+        State.comparativeChart.year = parseInt(e.target.value);
+        UI.updateComparativeChart();
+      });
+    },
+    
+    // Preencher seletor de anos no gráfico comparativo
+    fillYearSelector: () => {
+      const yearSelect = document.getElementById('comparative-year');
+      if (!yearSelect) return;
+      
+      const years = DataManager.getAvailableYears();
+      
+      // Se não houver anos, mostrar apenas o ano atual
+      if (years.length === 0) {
+        yearSelect.innerHTML = `<option value="${new Date().getFullYear()}">${new Date().getFullYear()}</option>`;
+        return;
+      }
+      
+      yearSelect.innerHTML = years.map(year => 
+        `<option value="${year}" ${year === State.comparativeChart.year ? 'selected' : ''}>${year}</option>`
+      ).join('');
+    },
+    
+    // Atualizar gráfico comparativo
+    updateComparativeChart: () => {
+      if (!State.menuCards.comparativeExpanded) return;
+      
+      const canvas = document.getElementById('chartComparative');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      State.charts.comparativeChart = Charts.createComparativeChart(ctx, State.data);
     },
 
     selectPN: (filter) => {
@@ -2500,42 +3034,42 @@ const ToyotaQC = (function() {
     },
     
     renderTopDefectAndPNs: (stats, data) => {
-    const topDefect = DataManager.getTopDefect(stats);
-    const topPNs = DataManager.getTopPNs(data);
-    
-    const top1Container = document.getElementById('top1-defeito-content');
-    if (top1Container) {
-      if (topDefect) {
-        top1Container.innerHTML = `
-          <div class="text-center">
-            <p class="text-sm font-bold text-toyota-red">${topDefect.name}</p>
-            <p class="text-2xl font-black text-gray-800 dark:text-gray-100">${Utils.formatNumber(topDefect.qty)}</p>
-            <p class="text-[10px] text-gray-400">Saldo Defeito</p>
-          </div>
-        `;
-      } else {
-        top1Container.innerHTML = '<p class="text-xs text-gray-500">Nenhum defeito registrado</p>';
-      }
-    }
-    
-    const top3Container = document.getElementById('top3-pns-content');
-    if (top3Container) {
-      if (topPNs.length > 0) {
-        top3Container.innerHTML = topPNs.map((pn, idx) => `
-          <div class="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <div class="flex items-center justify-center gap-1 mb-1">
-              <span class="position-badge position-${idx+1}">${idx+1}</span>
-              <span class="font-bold text-sm">${pn.pn}</span>
+      const topDefect = DataManager.getTopDefect(stats);
+      const topPNs = DataManager.getTopPNs(data);
+      
+      const top1Container = document.getElementById('top1-defeito-content');
+      if (top1Container) {
+        if (topDefect) {
+          top1Container.innerHTML = `
+            <div class="text-center">
+              <p class="text-sm font-bold text-toyota-red">${topDefect.name}</p>
+              <p class="text-2xl font-black text-gray-800 dark:text-gray-100">${Utils.formatNumber(topDefect.qty)}</p>
+              <p class="text-[10px] text-gray-400">Saldo Defeito</p>
             </div>
-            <p class="text-lg font-black text-red-600 dark:text-red-500">${Utils.formatNumber(pn.qty)}</p>
-            <p class="text-[9px] text-gray-400">Total Reparos</p> <!-- ALTERADO AQUI -->
-          </div>
-        `).join('');
-      } else {
-        top3Container.innerHTML = '<p class="text-xs text-gray-500 col-span-3 text-center">Nenhum PN com reparos</p>'; // ALTERADO AQUI
+          `;
+        } else {
+          top1Container.innerHTML = '<p class="text-xs text-gray-500">Nenhum defeito registrado</p>';
+        }
       }
-    }
-  },
+      
+      const top3Container = document.getElementById('top3-pns-content');
+      if (top3Container) {
+        if (topPNs.length > 0) {
+          top3Container.innerHTML = topPNs.map((pn, idx) => `
+            <div class="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div class="flex items-center justify-center gap-1 mb-1">
+                <span class="position-badge position-${idx+1}">${idx+1}</span>
+                <span class="font-bold text-sm">${pn.pn}</span>
+              </div>
+              <p class="text-lg font-black text-red-600 dark:text-red-500">${Utils.formatNumber(pn.qty)}</p>
+              <p class="text-[9px] text-gray-400">Total Reparos</p>
+            </div>
+          `).join('');
+        } else {
+          top3Container.innerHTML = '<p class="text-xs text-gray-500 col-span-3 text-center">Nenhum PN com reparos</p>';
+        }
+      }
+    },
 
     renderDashboardTableOnly: () => {
       if (!State.data.length) return;
@@ -2656,8 +3190,14 @@ const ToyotaQC = (function() {
       const prev = document.getElementById('tbl-prev');
       const next = document.getElementById('tbl-next');
 
-      if (prev) { prev.disabled = State.tablePager.page <= 1; prev.classList.toggle('btn-disabled', prev.disabled); }
-      if (next) { next.disabled = State.tablePager.page >= State.tablePager.totalPages; next.classList.toggle('btn-disabled', next.disabled); }
+      if (prev) { 
+        prev.disabled = State.tablePager.page <= 1; 
+        prev.classList.toggle('btn-disabled', prev.disabled); 
+      }
+      if (next) { 
+        next.disabled = State.tablePager.page >= State.tablePager.totalPages; 
+        next.classList.toggle('btn-disabled', next.disabled); 
+      }
     },
 
     updateCharts: (stats) => {
@@ -2788,7 +3328,10 @@ const ToyotaQC = (function() {
     closeManualModal: () => UI.closeManualModal(),
     closeAreaModal: () => UI.closeAreaModal(),
     closeBackupModal: () => UI.closeBackupModal(),
-    clearQuickFilters: () => UI.clearQuickFilters()
+    clearQuickFilters: () => UI.clearQuickFilters(),
+    updateComparativeChart: () => UI.updateComparativeChart(),
+    toggleAreaCard: () => UI.toggleAreaCard(),
+    toggleComparativeCard: () => UI.toggleComparativeCard()
   };
 })();
 
@@ -2802,3 +3345,6 @@ window.backToMenuFromMissingCheck = () => ToyotaQC.backToMenuFromMissingCheck();
 window.closeLoginModal = () => ToyotaQC.closeLoginModal();
 window.closeAreaModal = () => ToyotaQC.closeAreaModal();
 window.closeBackupModal = () => ToyotaQC.closeBackupModal();
+window.updateComparativeChart = () => ToyotaQC.updateComparativeChart();
+window.toggleAreaCard = () => ToyotaQC.toggleAreaCard();
+window.toggleComparativeCard = () => ToyotaQC.toggleComparativeCard();
