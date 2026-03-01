@@ -1471,106 +1471,97 @@
 
   // ==================== GERENCIAMENTO DE DADOS ====================
   const DataManager = {
-    fetchData: async (isManual = false) => {
-      if (State.isFetching) return;
-      State.isFetching = true;
+   fetchData: async (isManual = false) => {
+  if (State.isFetching) return;
+  State.isFetching = true;
+  UI.updateManualButtonState();
+
+  const cacheKey = `toyota_data_${CONFIG.SHEET_ID}`;
+  const cached = localStorage.getItem(cacheKey);
+  const cacheTime = localStorage.getItem(`${cacheKey}_time`);
+
+  if (!isManual && cached && cacheTime && (Date.now() - cacheTime < CONFIG.CACHE_TIME)) {
+    try {
+      State.data = JSON.parse(cached);
+      DataManager.processData();
+      State.isFetching = false;
       UI.updateManualButtonState();
+      State.connectionStatus = 'cache';
+      UI.updateConnectionStatus();
+      UI.hideConnBanner();
+      UI.hideInitialLoading();
+      Utils.showToast('Dados carregados do cache', 'info');
+      return;
+    } catch (e) {
+      console.warn('Erro ao ler cache:', e);
+    }
+  }
 
-      const cacheKey = `toyota_data_${CONFIG.SHEET_ID}`;
-      const cached = localStorage.getItem(cacheKey);
-      const cacheTime = localStorage.getItem(`${cacheKey}_time`);
-
-      if (!isManual && cached && cacheTime && (Date.now() - cacheTime < CONFIG.CACHE_TIME)) {
-        try {
-          State.data = JSON.parse(cached);
-          DataManager.processData();
-          State.isFetching = false;
-          UI.updateManualButtonState();
-          State.connectionStatus = 'cache';
-          UI.updateConnectionStatus();
-          UI.hideConnBanner();
-          UI.hideInitialLoading();
-          Utils.showToast('Dados carregados do cache', 'info');
-          return;
-        } catch (e) {
-          console.warn('Erro ao ler cache:', e);
-        }
-      }
-
-      if (!Utils.acquireFetchLock()) {
-        if (cached) {
-          try {
-            State.data = JSON.parse(cached);
-            DataManager.processData();
-          } catch (_e) {}
-        }
-        State.isFetching = false;
-        UI.updateManualButtonState();
-        UI.hideInitialLoading();
-        return;
-      }
-
-      Utils.showSkeleton('table-body', 5, 24);
-      UI.updateLastUpdate(t('updating'));
-
-      const url = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/export?format=csv&gid=${CONFIG.GID}&t=${Date.now()}`;
-
+  if (!Utils.acquireFetchLock()) {
+    if (cached) {
       try {
-        const response = await Utils.fetchWithRetry(url);
-        let csvText = await response.text();
-
-        csvText = csvText.replace(/^\uFEFF/, '');
-
-        const parsed = Papa.parse(csvText, {
-          header: true,
-          skipEmptyLines: true,
-          transform: (value) => value?.trim() || ''
-        });
-
-        if (parsed.errors && parsed.errors.length) throw new Error(parsed.errors[0]?.message || 'Erro ao parsear CSV');
-
-        if (State.data.length > 0) {
-          State.previousStats = DataManager.computeStats(State.data);
-        }
-
-        State.data = Array.isArray(parsed.data) ? parsed.data : [];
-
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(State.data));
-          localStorage.setItem(`${cacheKey}_time`, Date.now());
-        } catch (e) {
-          console.warn('Erro ao salvar cache:', e);
-        }
-
-        State.connectionStatus = 'online';
+        State.data = JSON.parse(cached);
         DataManager.processData();
-        UI.hideConnBanner();
-        Utils.showToast('Dados atualizados com sucesso!', 'success');
-      } catch (err) {
-        console.error('Erro ao buscar dados:', err);
-        State.connectionStatus = 'offline';
+      } catch (_e) {}
+    }
+    State.isFetching = false;
+    UI.updateManualButtonState();
+    UI.hideInitialLoading();
+    return;
+  }
 
-        if (cached) {
-          try {
-            State.data = JSON.parse(cached);
-            DataManager.processData();
-            UI.showConnBanner('Usando dados em cache', 'Conexão instável - dados podem estar desatualizados', err.message);
-            Utils.showToast('Usando dados em cache', 'warning');
-          } catch (e) {
-            UI.showConnBanner('Erro de conexão', 'Não foi possível carregar os dados', err.message);
-          }
-        } else {
-          UI.showConnBanner('Erro de conexão', 'Não foi possível carregar os dados', err.message);
-        }
-      } finally {
-        Utils.releaseFetchLock();
-        State.isFetching = false;
-        UI.updateLastUpdate();
-        UI.updateConnectionStatus();
-        UI.updateManualButtonState();
-        UI.hideInitialLoading();
+  Utils.showSkeleton('table-body', 5, 24);
+  UI.updateLastUpdate(t('updating'));
+
+  // ✅ NOVA URL DO APPS SCRIPT (substitua pelo SEU ID)
+const url = `https://script.google.com/macros/s/AKfycbw_8N6BxyLNOnxj_R--WYV3Ou9GtvOVgUycRjSHVakIOmzcJErYm5ouFwRDuux6Tq12Pg/exec?t=${Date.now()}`;
+  try {
+    const response = await Utils.fetchWithRetry(url);
+    const jsonData = await response.json(); // JÁ VEM COMO JSON!
+    
+    // ✅ Não precisa mais de PapaParse!
+    State.data = jsonData;
+
+    if (State.data.length > 0) {
+      State.previousStats = DataManager.computeStats(State.data);
+    }
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(State.data));
+      localStorage.setItem(`${cacheKey}_time`, Date.now());
+    } catch (e) {
+      console.warn('Erro ao salvar cache:', e);
+    }
+
+    State.connectionStatus = 'online';
+    DataManager.processData();
+    UI.hideConnBanner();
+    Utils.showToast('Dados atualizados com sucesso!', 'success');
+  } catch (err) {
+    console.error('Erro ao buscar dados:', err);
+    State.connectionStatus = 'offline';
+
+    if (cached) {
+      try {
+        State.data = JSON.parse(cached);
+        DataManager.processData();
+        UI.showConnBanner('Usando dados em cache', 'Conexão instável - dados podem estar desatualizados', err.message);
+        Utils.showToast('Usando dados em cache', 'warning');
+      } catch (e) {
+        UI.showConnBanner('Erro de conexão', 'Não foi possível carregar os dados', err.message);
       }
-    },
+    } else {
+      UI.showConnBanner('Erro de conexão', 'Não foi possível carregar os dados', err.message);
+    }
+  } finally {
+    Utils.releaseFetchLock();
+    State.isFetching = false;
+    UI.updateLastUpdate();
+    UI.updateConnectionStatus();
+    UI.updateManualButtonState();
+    UI.hideInitialLoading();
+  }
+},
 
     processData: () => {
       const availableYears = DataManager.getAvailableYears();
