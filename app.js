@@ -1,11 +1,11 @@
-const ToyotaQC = (function() {
+﻿const ToyotaQC = (function() {
   'use strict';
 
   // ==================== CONFIGURAÇÕES ====================
   const CONFIG = {
     SHEET_ID: '1y8kcWOCFCXeHHtC_MFHBD2M5zYasY6A8K4MW_Qqo3V0',
     GID: '914910661',
-    UPDATE_INTERVAL: 600,
+    UPDATE_INTERVAL: 6000,
     CACHE_TIME: 300000,
     RETRY_BASE_MS: 1000,
     RETRY_JITTER_MS: 400,
@@ -83,6 +83,7 @@ const ToyotaQC = (function() {
     
     currentScreen: 'menu',
     isDarkMode: false,
+    language: localStorage.getItem('toyota_lang') || 'pt',
     timer: CONFIG.UPDATE_INTERVAL,
     manualCooldownLeft: 0,
     isFetching: false,
@@ -139,6 +140,502 @@ const ToyotaQC = (function() {
     }
   };
 
+  const I18N = {
+    pt: {
+      refresh_now: 'Atualizar agora',
+      updating: 'Atualizando...',
+      wait_prefix: 'Aguarde',
+      open_sheet: 'Abrir Planilha',
+      help: 'Ajuda',
+      theme_light: 'Claro',
+      theme_dark: 'Escuro',
+      source_google: 'Fonte: Google Sheets',
+      loading_data: 'Carregando dados...',
+      menu_select_title: 'Selecione o Projeto que Deseja visualizar',
+      menu_select_subtitle: 'Escolha um Part Number ou visualize o panorama geral.',
+      menu_pending: 'Pendências',
+      saldo_check_label: 'Saldo (checagem):',
+      saldo_def_label: 'Saldo defeito:',
+      period_label: 'Período',
+      period_loading: 'Carregando período...',
+      period_invalid: 'Período: (sem data válida)',
+      no_pending: 'Sem pendências',
+      filter_all: 'Todos',
+      hint_day: 'Dia',
+      hint_month: 'Mês',
+      hint_year: 'Ano',
+      hint_filter: 'Filtro',
+      live: 'Live',
+      kpi_checked: 'Total Checado',
+      kpi_defects: 'Saldo Defeito',
+      kpi_repairs: 'Reparados',
+      kpi_scrap: 'Scrap',
+      pct_rework_suffix: 'retrabalho',
+      pct_scrap_suffix: 'scrap',
+      top1_defect: '🏆 Top 1 Defeito',
+      top3_pns: '📊 Top 3 PNs Críticos',
+      base_saldo_def: 'base: Saldo Defeito',
+      pareto_defects: 'Pareto de Defeitos',
+      status_general: 'Status Geral',
+      status_compare: 'Peças a checar e Peças com Defeito',
+      today: 'hoje',
+      no_defect_registered: 'Nenhum defeito registrado',
+      no_pn_repairs: 'Nenhum PN com reparos',
+      total_repairs: 'Total Reparos',
+      defect_balance: 'Saldo Defeito',
+      screen_overview_all: 'VISÃO GERAL (TODOS)',
+      screen_monitoring: 'MONITORAMENTO',
+      area_repair: 'Área do Reparo',
+      details: 'Detalhes',
+      comparative_title: 'Comparativo: Saldo Defeito vs Scrap',
+      monthly: 'Mensal',
+      yearly: 'Anual',
+      hidden_cards: 'Cards ocultos:',
+      comparative_short: 'Comparativo',
+      period_from_to: 'De {from} até {to}',
+      no_data: 'Sem dados',
+      months_short: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+      back: 'VOLTAR',
+      menu_view_chart_check: 'Ver grafico (Saldo checagem)',
+      menu_overview_card_title: 'VISAO GERAL',
+      menu_overview_card_subtitle: 'Todos os PNs',
+      dashboard_realtime: 'Monitoramento em Tempo Real',
+      search_label: 'Buscar: PN / Die / Defeito / Quem reparou',
+      search_placeholder: 'Digite para buscar...',
+      sort_default: 'Ordenar por...',
+      sort_saldodef_desc: 'Maior Saldo Defeito',
+      sort_date_desc: 'Mais recente',
+      sort_date_asc: 'Mais antigo',
+      clear: 'Limpar',
+      active_filters: 'Filtros ativos:',
+      filter_total_checked_title: 'Filtro do Total Checado',
+      filter_total_checked_subtitle: 'Escolha Dia, Mes e Ano (base: Data Producao)',
+      table_title: 'Detalhamento por Turno',
+      table_tooltip: 'Dados em tempo real da producao',
+      table_lines: 'Linhas',
+      table_prev: 'Anterior',
+      table_next: 'Proxima',
+      table_page: 'Pagina {page}/{total}',
+      table_reg_short: 'Reg',
+      table_group_general: 'Geral',
+      table_group_shift1: '1o Turno',
+      table_group_shift2: '2o Turno',
+      table_group_shift3: '3o Turno',
+      table_group_final: 'Final',
+      col_prod_date: 'Data Producao',
+      col_shift: 'Turno',
+      col_die_number: 'Die Number',
+      col_part_number: 'Part Number',
+      col_qty_to_check: 'Qtd p/checar',
+      col_defect_type: 'Tipo de Defeito',
+      col_checked_1: 'Checado 1T',
+      col_repaired_1: 'Reparado 1T',
+      col_scrap_1: 'Scrap 1T',
+      col_who_1: 'Quem Reparou? 1T',
+      col_checked_2: 'Checado 2T',
+      col_repaired_2: 'Reparado 2T',
+      col_scrap_2: 'Scrap 2T',
+      col_who_2: 'Quem Reparou? 2T',
+      col_checked_3: 'Checado 3T',
+      col_repaired_3: 'Reparado 3T',
+      col_scrap_3: 'Scrap 3T',
+      col_who_3: 'Quem Reparou? 3T',
+      col_scrap_total: 'Quantidade Scrap',
+      col_to_check: 'A Checar',
+      col_defect_qty: 'Quantidade de Defeito',
+      status_online: 'Online',
+      status_cache: 'Cache',
+      status_fail: 'Falha',
+      source_realtime: 'Fonte: Google Sheets (tempo real)',
+      source_cache: 'Fonte: Cache local',
+      source_offline: 'Fonte: Offline',
+      updated_prefix: 'Atualizado',
+      area_total: 'Area Total',
+      limit: 'Limite',
+      occupancy: 'Ocupacao',
+      area_detail_by_product: 'Detalhamento por Produto',
+      items: 'itens',
+      pending: 'Pendente',
+      balance: 'Saldo',
+      area_per_pallet: 'Area/Pallet',
+      stack: 'Empilha',
+      pieces_per_pallet: 'Pecas/Pallet',
+      pallets: 'Pallets',
+      positions: 'Posicoes',
+      area_m2: 'Area (m2)',
+      no_product_pending: 'Nenhum produto com pendencia',
+      missingcheck_title: 'Saldo (checagem) por Part Number',
+      missingcheck_subtitle: 'Somente itens com Saldo > 0',
+      missingcheck_chart_title: 'Grafico (PN + Saldo)',
+      missingcheck_sort: 'Ordenar',
+      missingcheck_sort_oldest: 'Mais antigo -> mais atual',
+      missingcheck_sort_newest: 'Mais atual -> mais antigo',
+      missingcheck_hint: 'Passe o mouse: mostra o periodo (Data Producao min e max) daquele PN.',
+      pieces: 'pecas',
+      defect_prefix: 'DEFEITO',
+      defect_total_suffix: 'Saldo Defeito',
+      defect_subtitle: 'Pareto por Part Number (base: Saldo Defeito)',
+      defect_chart_title: 'Pareto por PN (Top + Outros)',
+      defect_chart_legend: 'Barras = Qtde | Linha = % acumulado',
+      other_label: 'OUTROS',
+      cumulative_pct: '% Acumulado',
+      quick_search: 'Busca',
+      filter_order: 'Ordenar',
+      filter_balance: 'Saldo',
+      filter_balance_def: 'Saldo Def',
+      conn_footer: 'Sistema conectado a base de dados da Qualidade',
+      header_area_btn: 'Area',
+      header_area_btn_title: 'Visualizar area do reparo',
+      header_backup_btn_title: 'Gerenciar backups (Ctrl+B)',
+      manual_title: 'Manual do Sistema',
+      manual_understood: 'Entendi',
+      header_main_title: 'Reparo Prensas',
+      header_main_subtitle: 'Dashboard de Monitoramento'
+    },
+    en: {
+      refresh_now: 'Refresh now',
+      updating: 'Updating...',
+      wait_prefix: 'Wait',
+      open_sheet: 'Open Sheet',
+      help: 'Help',
+      theme_light: 'Light',
+      theme_dark: 'Dark',
+      source_google: 'Source: Google Sheets',
+      loading_data: 'Loading data...',
+      menu_select_title: 'Select The Project You Want To View',
+      menu_select_subtitle: 'Choose a Part Number or see the full overview.',
+      menu_pending: 'Pending',
+      saldo_check_label: 'Check balance:',
+      saldo_def_label: 'Defect balance:',
+      period_label: 'Period',
+      period_loading: 'Loading period...',
+      period_invalid: 'Period: (no valid date)',
+      no_pending: 'No pending items',
+      filter_all: 'All',
+      hint_day: 'Day',
+      hint_month: 'Month',
+      hint_year: 'Year',
+      hint_filter: 'Filter',
+      live: 'Live',
+      kpi_checked: 'Checked Total',
+      kpi_defects: 'Defect Balance',
+      kpi_repairs: 'Repairs',
+      kpi_scrap: 'Scrap',
+      pct_rework_suffix: 'rework',
+      pct_scrap_suffix: 'scrap',
+      top1_defect: '🏆 Top 1 Defect',
+      top3_pns: '📊 Top 3 Critical PNs',
+      base_saldo_def: 'base: Defect Balance',
+      pareto_defects: 'Defect Pareto',
+      status_general: 'Overall Status',
+      status_compare: 'Check Balance vs Defect Balance',
+      today: 'today',
+      no_defect_registered: 'No defects recorded',
+      no_pn_repairs: 'No PN with repairs',
+      total_repairs: 'Total Repairs',
+      defect_balance: 'Defect Balance',
+      screen_overview_all: 'OVERVIEW (ALL)',
+      screen_monitoring: 'MONITORING',
+      area_repair: 'Repair Area',
+      details: 'Details',
+      comparative_title: 'Comparison: Defect Balance vs Scrap',
+      monthly: 'Monthly',
+      yearly: 'Yearly',
+      hidden_cards: 'Hidden cards:',
+      comparative_short: 'Comparison',
+      period_from_to: 'From {from} to {to}',
+      no_data: 'No data',
+      months_short: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+      back: 'BACK',
+      menu_view_chart_check: 'View chart (Check balance)',
+      menu_overview_card_title: 'OVERVIEW',
+      menu_overview_card_subtitle: 'All PNs',
+      dashboard_realtime: 'Real-time Monitoring',
+      search_label: 'Search: PN / Die / Defect / Repaired by',
+      search_placeholder: 'Type to search...',
+      sort_default: 'Sort by...',
+      sort_saldodef_desc: 'Highest Defect Balance',
+      sort_date_desc: 'Newest',
+      sort_date_asc: 'Oldest',
+      clear: 'Clear',
+      active_filters: 'Active filters:',
+      filter_total_checked_title: 'Checked Total Filter',
+      filter_total_checked_subtitle: 'Choose Day, Month and Year (base: Production Date)',
+      table_title: 'Shift Details',
+      table_tooltip: 'Real-time production data',
+      table_lines: 'Lines',
+      table_prev: 'Previous',
+      table_next: 'Next',
+      table_page: 'Page {page}/{total}',
+      table_reg_short: 'rows',
+      table_group_general: 'General',
+      table_group_shift1: '1st Shift',
+      table_group_shift2: '2nd Shift',
+      table_group_shift3: '3rd Shift',
+      table_group_final: 'Final',
+      col_prod_date: 'Production Date',
+      col_shift: 'Shift',
+      col_die_number: 'Die Number',
+      col_part_number: 'Part Number',
+      col_qty_to_check: 'Qty to Check',
+      col_defect_type: 'Defect Type',
+      col_checked_1: 'Checked 1st',
+      col_repaired_1: 'Repaired 1st',
+      col_scrap_1: 'Scrap 1st',
+      col_who_1: 'Who repaired? 1st',
+      col_checked_2: 'Checked 2nd',
+      col_repaired_2: 'Repaired 2nd',
+      col_scrap_2: 'Scrap 2nd',
+      col_who_2: 'Who repaired? 2nd',
+      col_checked_3: 'Checked 3rd',
+      col_repaired_3: 'Repaired 3rd',
+      col_scrap_3: 'Scrap 3rd',
+      col_who_3: 'Who repaired? 3rd',
+      col_scrap_total: 'Scrap Quantity',
+      col_to_check: 'To Check',
+      col_defect_qty: 'Defect Quantity',
+      status_online: 'Online',
+      status_cache: 'Cache',
+      status_fail: 'Failure',
+      source_realtime: 'Source: Google Sheets (real-time)',
+      source_cache: 'Source: Local cache',
+      source_offline: 'Source: Offline',
+      updated_prefix: 'Updated',
+      area_total: 'Total Area',
+      limit: 'Limit',
+      occupancy: 'Occupancy',
+      area_detail_by_product: 'Detail by Product',
+      items: 'items',
+      pending: 'Pending',
+      balance: 'Balance',
+      area_per_pallet: 'Area/Pallet',
+      stack: 'Stack',
+      pieces_per_pallet: 'Pieces/Pallet',
+      pallets: 'Pallets',
+      positions: 'Positions',
+      area_m2: 'Area (m2)',
+      no_product_pending: 'No product with pending quantity',
+      missingcheck_title: 'Check Balance by Part Number',
+      missingcheck_subtitle: 'Only items with Balance > 0',
+      missingcheck_chart_title: 'Chart (PN + Balance)',
+      missingcheck_sort: 'Sort',
+      missingcheck_sort_oldest: 'Oldest -> newest',
+      missingcheck_sort_newest: 'Newest -> oldest',
+      missingcheck_hint: 'Hover to see period (min and max Production Date) for each PN.',
+      pieces: 'pieces',
+      defect_prefix: 'DEFECT',
+      defect_total_suffix: 'Defect Balance',
+      defect_subtitle: 'Pareto by Part Number (base: Defect Balance)',
+      defect_chart_title: 'Pareto by PN (Top + Others)',
+      defect_chart_legend: 'Bars = Qty | Line = cumulative %',
+      other_label: 'OTHERS',
+      cumulative_pct: '% Cumulative',
+      quick_search: 'Search',
+      filter_order: 'Sort',
+      filter_balance: 'Balance',
+      filter_balance_def: 'Defect Bal',
+      conn_footer: 'System connected to Quality database',
+      header_area_btn: 'Area',
+      header_area_btn_title: 'View repair area',
+      header_backup_btn_title: 'Manage backups (Ctrl+B)',
+      manual_title: 'System Manual',
+      manual_understood: 'Understood',
+      header_main_title: 'Press Repair',
+      header_main_subtitle: 'Monitoring Dashboard'
+    },
+    ja: {
+      refresh_now: '今すぐ更新',
+      updating: '更新中...',
+      wait_prefix: '待機',
+      open_sheet: 'シートを開く',
+      help: 'ヘルプ',
+      theme_light: 'ライト',
+      theme_dark: 'ダーク',
+      source_google: 'データ元: Google Sheets',
+      loading_data: 'データ読み込み中...',
+      menu_select_title: '表示するプロジェクトを選択',
+      menu_select_subtitle: 'Part Number を選ぶか、全体ビューを表示します。',
+      menu_pending: '未処理',
+      saldo_check_label: 'チェック残:',
+      saldo_def_label: '不良残:',
+      period_label: '期間',
+      period_loading: '期間を読み込み中...',
+      period_invalid: '期間: (有効な日付なし)',
+      no_pending: '未処理なし',
+      filter_all: 'すべて',
+      hint_day: '日',
+      hint_month: '月',
+      hint_year: '年',
+      hint_filter: 'フィルター',
+      live: 'LIVE',
+      kpi_checked: 'チェック合計',
+      kpi_defects: '不良残',
+      kpi_repairs: '補修',
+      kpi_scrap: 'スクラップ',
+      pct_rework_suffix: '手直し',
+      pct_scrap_suffix: 'スクラップ',
+      top1_defect: '🏆 不良 Top 1',
+      top3_pns: '📊 重要PN Top 3',
+      base_saldo_def: '基準: 不良残',
+      pareto_defects: '不良パレート',
+      status_general: '全体ステータス',
+      status_compare: 'チェック残 vs 不良残',
+      today: '今日',
+      no_defect_registered: '不良データなし',
+      no_pn_repairs: '補修PNなし',
+      total_repairs: '補修合計',
+      defect_balance: '不良残',
+      screen_overview_all: '全体表示 (ALL)',
+      screen_monitoring: '監視',
+      area_repair: '補修エリア',
+      details: '詳細',
+      comparative_title: '比較: 不良残 vs スクラップ',
+      monthly: '月次',
+      yearly: '年次',
+      hidden_cards: '非表示カード:',
+      comparative_short: '比較',
+      period_from_to: '{from} 〜 {to}',
+      no_data: 'データなし',
+      months_short: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+      back: '戻る',
+      menu_view_chart_check: 'グラフを見る (チェック残)',
+      menu_overview_card_title: '全体表示',
+      menu_overview_card_subtitle: '全PN',
+      dashboard_realtime: 'リアルタイム監視',
+      search_label: '検索: PN / Die / 不良 / 補修者',
+      search_placeholder: '検索語を入力...',
+      sort_default: '並び替え...',
+      sort_saldodef_desc: '不良残が多い順',
+      sort_date_desc: '新しい順',
+      sort_date_asc: '古い順',
+      clear: 'クリア',
+      active_filters: '有効フィルター:',
+      filter_total_checked_title: 'チェック合計フィルター',
+      filter_total_checked_subtitle: '日・月・年を選択 (基準: 生産日)',
+      table_title: '工程別詳細',
+      table_tooltip: '生産データをリアルタイム表示',
+      table_lines: '行数',
+      table_prev: '前へ',
+      table_next: '次へ',
+      table_page: 'ページ {page}/{total}',
+      table_reg_short: '件',
+      table_group_general: '全体',
+      table_group_shift1: '1直',
+      table_group_shift2: '2直',
+      table_group_shift3: '3直',
+      table_group_final: '最終',
+      col_prod_date: '生産日',
+      col_shift: '直',
+      col_die_number: 'Die Number',
+      col_part_number: 'Part Number',
+      col_qty_to_check: 'チェック予定',
+      col_defect_type: '不良タイプ',
+      col_checked_1: 'チェック 1直',
+      col_repaired_1: '補修 1直',
+      col_scrap_1: 'スクラップ 1直',
+      col_who_1: '補修者 1直',
+      col_checked_2: 'チェック 2直',
+      col_repaired_2: '補修 2直',
+      col_scrap_2: 'スクラップ 2直',
+      col_who_2: '補修者 2直',
+      col_checked_3: 'チェック 3直',
+      col_repaired_3: '補修 3直',
+      col_scrap_3: 'スクラップ 3直',
+      col_who_3: '補修者 3直',
+      col_scrap_total: 'スクラップ合計',
+      col_to_check: '未チェック',
+      col_defect_qty: '不良数',
+      status_online: 'オンライン',
+      status_cache: 'キャッシュ',
+      status_fail: 'エラー',
+      source_realtime: 'データ元: Google Sheets (リアルタイム)',
+      source_cache: 'データ元: ローカルキャッシュ',
+      source_offline: 'データ元: オフライン',
+      updated_prefix: '更新',
+      area_total: '総面積',
+      limit: '上限',
+      occupancy: '使用率',
+      area_detail_by_product: '製品別詳細',
+      items: '件',
+      pending: '保留',
+      balance: '残',
+      area_per_pallet: '面積/パレット',
+      stack: '段積み',
+      pieces_per_pallet: '個数/パレット',
+      pallets: 'パレット',
+      positions: '位置',
+      area_m2: '面積 (m2)',
+      no_product_pending: '保留製品はありません',
+      missingcheck_title: 'PN別 チェック残',
+      missingcheck_subtitle: '残 > 0 のみ表示',
+      missingcheck_chart_title: 'グラフ (PN + 残)',
+      missingcheck_sort: '並び替え',
+      missingcheck_sort_oldest: '古い順 -> 新しい順',
+      missingcheck_sort_newest: '新しい順 -> 古い順',
+      missingcheck_hint: 'ホバーで各PNの期間 (生産日 min/max) を表示',
+      pieces: '個',
+      defect_prefix: '不良',
+      defect_total_suffix: '不良残',
+      defect_subtitle: 'PN別パレート (基準: 不良残)',
+      defect_chart_title: 'PN別パレート (Top + その他)',
+      defect_chart_legend: '棒 = 数量 | 線 = 累積%',
+      other_label: 'その他',
+      cumulative_pct: '累積 %',
+      quick_search: '検索',
+      filter_order: '並び替え',
+      filter_balance: '残',
+      filter_balance_def: '不良残',
+      conn_footer: '品質データベースに接続中',
+      header_area_btn: 'エリア',
+      header_area_btn_title: '補修エリアを表示',
+      header_backup_btn_title: 'バックアップ管理 (Ctrl+B)',
+      manual_title: 'システムマニュアル',
+      manual_understood: '了解',
+      header_main_title: 'プレス補修',
+      header_main_subtitle: '監視ダッシュボード'
+    }
+  };
+
+  const t = (key) => {
+    const lang = I18N[State.language] ? State.language : 'pt';
+    return I18N[lang][key] || I18N.pt[key] || key;
+  };
+
+  const defectKey = (name) => String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+
+  const DEFECT_I18N = {
+    [defectKey('Amassado')]: { pt: 'Amassado', en: 'Dent', ja: '凹み' },
+    [defectKey('Caroço')]: { pt: 'Caroço', en: 'Lump', ja: '突起' },
+    [defectKey('Checagem de qualidade 100%')]: { pt: 'Checagem de qualidade 100%', en: '100% quality check', ja: '品質確認100%' },
+    [defectKey('Estiramento')]: { pt: 'Estiramento', en: 'Stretching', ja: '伸び' },
+    [defectKey('Limalha')]: { pt: 'Limalha', en: 'Metal filing', ja: '切粉' },
+    [defectKey('Marca de ferramenta')]: { pt: 'Marca de ferramenta', en: 'Tool mark', ja: '工具痕' },
+    [defectKey('Poro')]: { pt: 'Poro', en: 'Pore', ja: '気孔' },
+    [defectKey('Rebarba')]: { pt: 'Rebarba', en: 'Burr', ja: 'バリ' },
+    [defectKey('Risco')]: { pt: 'Risco', en: 'Scratch', ja: '傷' },
+    [defectKey('Ruga')]: { pt: 'Ruga', en: 'Wrinkle', ja: 'しわ' },
+    [defectKey('Trinca')]: { pt: 'Trinca', en: 'Crack', ja: '亀裂' },
+    [defectKey('Vinco')]: { pt: 'Vinco', en: 'Crease', ja: '折れじわ' },
+    [defectKey('Transbordo')]: { pt: 'Transbordo', en: 'Overflow', ja: 'はみ出し' },
+    [defectKey('Dupla checagem 100')]: { pt: 'Dupla checagem 100', en: 'Double 100% check', ja: '二重100%確認' },
+    [defectKey('Corrosão')]: { pt: 'Corrosão', en: 'Corrosion', ja: '腐食' },
+    [defectKey('Palete para Kaizen, Peças OK')]: { pt: 'Palete para Kaizen, Peças OK', en: 'Pallet for Kaizen, OK parts', ja: 'カイゼン用パレット（良品）' },
+    [defectKey('Dupla checagem, por causa de trinca')]: { pt: 'Dupla checagem, por causa de trinca', en: 'Double check due to crack', ja: '亀裂のため二重確認' },
+    [defectKey('Marca de oleo')]: { pt: 'Marca de oleo', en: 'Oil stain', ja: '油痕' },
+    [defectKey('Furo obstruido')]: { pt: 'Furo obstruido', en: 'Obstructed hole', ja: '穴詰まり' },
+    [defectKey('Esfoliamento')]: { pt: 'Esfoliamento', en: 'Peeling', ja: '剥離' },
+    [defectKey('Voltou da W')]: { pt: 'Voltou da W', en: 'Returned from W', ja: 'Wから戻り' },
+    [defectKey('Checagem de qualidade (trinca)')]: { pt: 'Checagem de qualidade (trinca)', en: 'Quality check (crack)', ja: '品質確認（亀裂）' },
+    [defectKey('Checagem de qualidade (amassado)')]: { pt: 'Checagem de qualidade (amassado)', en: 'Quality check (dent)', ja: '品質確認（凹み）' },
+    [defectKey('Checagem de qualidade (vinco)')]: { pt: 'Checagem de qualidade (vinco)', en: 'Quality check (crease)', ja: '品質確認（折れじわ）' }
+  };
+
   // ==================== UTILITÁRIOS ====================
   const Utils = {
     int: (v) => {
@@ -167,6 +664,15 @@ const ToyotaQC = (function() {
     safeTxt: (v) => Utils.escapeHtml(Utils.txt(v)),
     normalizePN: (v) => String(v || '').trim().toUpperCase(),
     normalizeDefect: (name) => String(name || '-').trim().replace(/\s+/g, ' ').toUpperCase(),
+    normalizeDefectKey: (name) => defectKey(name),
+    translateDefect: (name, lang = State.language) => {
+      const original = Utils.txt(name);
+      if (original === '-') return original;
+      const key = Utils.normalizeDefectKey(original);
+      const mapped = DEFECT_I18N[key];
+      if (!mapped) return original;
+      return mapped[lang] || mapped.pt || original;
+    },
     getScrapTotal: (row) => {
       const fromTotal = Utils.int(row[COL.scrapTotal]);
       if (fromTotal > 0) return fromTotal;
@@ -458,9 +964,12 @@ const ToyotaQC = (function() {
       return new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: combined.map(x => x.l.length > 15 ? x.l.substring(0, 12) + '...' : x.l),
+          labels: combined.map(x => {
+            const label = Utils.translateDefect(x.l);
+            return label.length > 15 ? label.substring(0, 12) + '...' : label;
+          }),
           datasets: [{
-            label: 'Saldo Defeito',
+            label: t('defect_balance'),
             data: combined.map(x => x.v),
             backgroundColor: (context) => {
               const colors = ['#EB0A1E','#F43646','#F85E6B','#FC8791','#FFAFB6','#FFC9CE','#FFE3E6','#FFF0F1'];
@@ -525,9 +1034,9 @@ const ToyotaQC = (function() {
       return new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: ['Saldo p/ Checar', 'Saldo Defeito'],
+          labels: [t('saldo_check_label').replace(':', ''), t('defect_balance')],
           datasets: [{
-            label: 'Quantidade',
+            label: t('col_defect_qty'),
             data: [stats.pendingSaldo, stats.pendingSaldoDef],
             backgroundColor: (context) => {
               const cctx = context.chart.ctx;
@@ -604,7 +1113,7 @@ const ToyotaQC = (function() {
           datasets: [
             {
               type: 'bar',
-              label: 'Saldo Defeito',
+              label: t('defect_balance'),
               data: values,
               backgroundColor: (context) => (context.dataIndex === idx80 ? '#FFB800' : '#EB0A1E'),
               borderRadius: 8,
@@ -614,7 +1123,7 @@ const ToyotaQC = (function() {
             },
             {
               type: 'line',
-              label: '% Acumulado',
+              label: t('cumulative_pct'),
               data: cumPct,
               borderColor: '#2D2D2D',
               backgroundColor: 'transparent',
@@ -696,7 +1205,7 @@ const ToyotaQC = (function() {
         data: {
           labels: labels.map(l => l.length > 15 ? l.substring(0, 12) + '...' : l),
           datasets: [{
-            label: 'Saldo (checagem)',
+            label: t('saldo_check_label').replace(/[:：]\s*$/, ''),
             data: values,
             backgroundColor: (context) => {
               const cctx = context.chart.ctx;
@@ -743,12 +1252,12 @@ const ToyotaQC = (function() {
               callbacks: {
                 label: (context) => {
                   const item = items[context.dataIndex];
-                  if (!item || item.pn === 'OUTROS') {
-                    return `Saldo: ${context.parsed.y.toLocaleString('pt-BR')}`;
+                  if (!item || item.pn === t('other_label')) {
+                    return `${t('saldo_check_label').replace(':', '')}: ${context.parsed.y.toLocaleString('pt-BR')}`;
                   }
                   return [
-                    `Saldo: ${context.parsed.y.toLocaleString('pt-BR')}`,
-                    `Período: ${Utils.formatDateFromTs(item.minTs)} - ${Utils.formatDateFromTs(item.maxTs)}`
+                    `${t('saldo_check_label').replace(':', '')}: ${context.parsed.y.toLocaleString('pt-BR')}`,
+                    `${t('period_label')}: ${Utils.formatDateFromTs(item.minTs)} - ${Utils.formatDateFromTs(item.maxTs)}`
                   ];
                 }
               }
@@ -789,7 +1298,7 @@ const ToyotaQC = (function() {
         data: {
           labels: labels,
           datasets: [{
-            label: 'Área Ocupada (m²)',
+            label: `${t('area_repair')} (m²)`,
             data: values,
             backgroundColor: corBarra,
             borderRadius: 8,
@@ -805,7 +1314,7 @@ const ToyotaQC = (function() {
             legend: { display: false },
             title: {
               display: true,
-              text: `Área: ${total.toFixed(1)} m² (${porcentagem.toFixed(1)}%)`,
+              text: `${t('area_repair')}: ${total.toFixed(1)} m² (${porcentagem.toFixed(1)}%)`,
               color: Charts.getTextColor(),
               font: { size: 11, weight: 'bold' }
             },
@@ -851,7 +1360,10 @@ const ToyotaQC = (function() {
       let scrapData = [];
 
       if (isMonthly) {
-        labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const monthLabels = t('months_short');
+        labels = Array.isArray(monthLabels)
+          ? monthLabels
+          : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         saldoDefData = new Array(12).fill(0);
         scrapData = new Array(12).fill(0);
 
@@ -890,7 +1402,7 @@ const ToyotaQC = (function() {
           .sort((a, b) => a[0] - b[0]);
 
         if (validYears.length === 0) {
-          labels = ['Sem dados'];
+          labels = [t('no_data')];
           saldoDefData = [0];
           scrapData = [0];
         } else {
@@ -908,7 +1420,7 @@ const ToyotaQC = (function() {
           labels,
           datasets: [
             {
-              label: 'Saldo Defeito',
+              label: t('defect_balance'),
               data: saldoDefData,
               backgroundColor: '#EB0A1E',
               borderRadius: 8,
@@ -917,7 +1429,7 @@ const ToyotaQC = (function() {
               maxBarThickness: 50
             },
             {
-              label: 'Scrap',
+              label: t('kpi_scrap'),
               data: scrapData,
               backgroundColor: '#1E293B',
               borderRadius: 8,
@@ -999,7 +1511,7 @@ const ToyotaQC = (function() {
       }
 
       Utils.showSkeleton('table-body', 5, 24);
-      UI.updateLastUpdate('Sincronizando...');
+      UI.updateLastUpdate(t('updating'));
 
       const url = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/export?format=csv&gid=${CONFIG.GID}&t=${Date.now()}`;
 
@@ -1105,6 +1617,7 @@ const ToyotaQC = (function() {
             Utils.txt(row[COL.part]).toLowerCase().includes(searchLower) ||
             Utils.txt(row[COL.die]).toLowerCase().includes(searchLower) ||
             Utils.txt(row[COL.tipoDef]).toLowerCase().includes(searchLower) ||
+            Utils.translateDefect(row[COL.tipoDef]).toLowerCase().includes(searchLower) ||
             Utils.txt(row[COL.who1]).toLowerCase().includes(searchLower) ||
             Utils.txt(row[COL.who2]).toLowerCase().includes(searchLower) ||
             Utils.txt(row[COL.who3]).toLowerCase().includes(searchLower)
@@ -1659,6 +2172,7 @@ const ToyotaQC = (function() {
       Charts.register();
 
       UI.initTheme();
+      UI.initLanguage();
       UI.bindEvents();
       UI.initQuickFilters();
       UI.showInitialLoading();
@@ -1758,7 +2272,7 @@ const ToyotaQC = (function() {
         <span>Backup</span>
       `;
       backupBtn.onclick = () => UI.openBackupModal();
-      backupBtn.title = "Gerenciar backups (Ctrl+B)";
+      backupBtn.title = t('header_backup_btn_title');
       
       // Botão de área
       const areaBtn = document.createElement('button');
@@ -1769,9 +2283,12 @@ const ToyotaQC = (function() {
         <span>Área</span>
       `;
       areaBtn.onclick = () => UI.openAreaModal();
+      areaBtn.innerHTML = `<i class="ph-bold ph-map-trifold"></i><span>${t('header_area_btn')}</span>`;
+      areaBtn.title = t('header_area_btn_title');
       areaBtn.title = "Visualizar área do reparo";
       
       // Inserir no início do container
+      areaBtn.title = t('header_area_btn_title');
       rightContainer.insertBefore(backupBtn, rightContainer.firstChild);
       rightContainer.insertBefore(areaBtn, rightContainer.firstChild);
       
@@ -1964,10 +2481,18 @@ const ToyotaQC = (function() {
     openAreaModal: () => {
       console.log('📱 Abrindo modal da área');
       let modal = document.getElementById('area-modal');
+      if (modal && modal.dataset.i18nLang !== State.language) {
+        modal.remove();
+        modal = null;
+      }
       if (!modal) {
         modal = UI.createAreaModal();
       }
-      
+      modal.dataset.i18nLang = State.language;
+      modal.setAttribute('aria-label', `${t('details')} ${t('area_repair')}`);
+      const areaTitle = modal.querySelector('h3');
+      if (areaTitle) areaTitle.innerHTML = `<i class="ph-bold ph-map-trifold text-blue-600"></i> ${t('area_repair')}`;
+
       UI.updateAreaModalContent();
       modal.classList.remove('hidden');
       modal.classList.add('flex');
@@ -1986,9 +2511,11 @@ const ToyotaQC = (function() {
     createAreaModal: () => {
       const modal = document.createElement('div');
       modal.id = 'area-modal';
+      modal.dataset.i18nLang = State.language;
       modal.className = 'hidden absolute inset-0 bg-black/60 z-[999] items-center justify-center p-4';
       modal.setAttribute('role', 'dialog');
       modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-label', `${t('details')} ${t('area_repair')}`);
       modal.setAttribute('aria-label', 'Detalhes da área do reparo');
       modal.innerHTML = `
         <div class="w-full max-w-4xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5 max-h-[80vh] overflow-y-auto">
@@ -2101,6 +2628,25 @@ const ToyotaQC = (function() {
       } else {
         html += '<p class="text-center text-gray-500 py-8">Nenhum produto com pendência</p>';
       }
+      const areaReplacements = [
+        [/(Ãrea Total|Área Total)/g, t('area_total')],
+        [/Limite/g, t('limit')],
+        [/(OcupaÃ§Ã£o|Ocupação)/g, t('occupancy')],
+        [/Detalhamento por Produto \((\d+) itens\)/g, `${t('area_detail_by_product')} ($1 ${t('items')})`],
+        [/Pendente/g, t('pending')],
+        [/Saldo Def/g, t('saldo_def_label').replace(':', '')],
+        [/Saldo/g, t('balance')],
+        [/(Ãrea\/Pallet|Área\/Pallet)/g, t('area_per_pallet')],
+        [/Empilha/g, t('stack')],
+        [/(PeÃ§as\/Pallet|Peças\/Pallet)/g, t('pieces_per_pallet')],
+        [/Pallets/g, t('pallets')],
+        [/(PosiÃ§Ãµes|Posições)/g, t('positions')],
+        [/(Ãrea \(mÂ²\)|Área \(m²\)|Area \(m2\))/g, t('area_m2')],
+        [/(Nenhum produto com pendÃªncia|Nenhum produto com pendência)/g, t('no_product_pending')]
+      ];
+      areaReplacements.forEach(([pattern, value]) => {
+        html = html.replace(pattern, value);
+      });
       content.innerHTML = html;
     },
     
@@ -2186,7 +2732,7 @@ const ToyotaQC = (function() {
       State.tablePager.page = 1;
       UI.updateActiveFiltersDisplay();
       UI.renderDashboard();
-      Utils.showToast('Filtros limpos', 'info');
+      Utils.showToast(`${t('active_filters')} ${t('clear')}`, 'info');
     },
     
     updateActiveFiltersDisplay: () => {
@@ -2197,17 +2743,17 @@ const ToyotaQC = (function() {
       const { search, saldo, saldoDef, scrap, sort } = State.quickFilters;
       const activeFilters = [];
       
-      if (search) activeFilters.push(`Busca: "${search}"`);
-      if (saldo) activeFilters.push('Saldo > 0');
-      if (saldoDef) activeFilters.push('Saldo Def > 0');
-      if (scrap) activeFilters.push('Scrap > 0');
+      if (search) activeFilters.push(`${t('quick_search')}: "${search}"`);
+      if (saldo) activeFilters.push(`${t('filter_balance')} > 0`);
+      if (saldoDef) activeFilters.push(`${t('filter_balance_def')} > 0`);
+      if (scrap) activeFilters.push(`${t('kpi_scrap')} > 0`);
       if (sort) {
         const sortLabels = {
-          'saldodef_desc': 'Maior Saldo Defeito',
-          'date_desc': 'Mais recente',
-          'date_asc': 'Mais antigo'
+          'saldodef_desc': t('sort_saldodef_desc'),
+          'date_desc': t('sort_date_desc'),
+          'date_asc': t('sort_date_asc')
         };
-        activeFilters.push(`Ordenar: ${sortLabels[sort] || sort}`);
+        activeFilters.push(`${t('filter_order')}: ${sortLabels[sort] || sort}`);
       }
       
       if (activeFilters.length > 0) {
@@ -2222,6 +2768,241 @@ const ToyotaQC = (function() {
     
     removeFilter: () => {
       UI.clearQuickFilters();
+    },
+
+    initLanguage: () => {
+      const saved = localStorage.getItem('toyota_lang');
+      if (saved && I18N[saved]) State.language = saved;
+      else State.language = 'pt';
+
+      const sel = document.getElementById('lang-select');
+      if (sel) sel.value = State.language;
+
+      UI.updateLanguageTexts();
+    },
+
+    applyLanguage: (lang) => {
+      if (!I18N[lang]) return;
+      State.language = lang;
+      localStorage.setItem('toyota_lang', lang);
+      UI.updateLanguageTexts();
+      UI.applyTheme(State.isDarkMode ? 'dark' : 'light');
+      UI.updateManualButtonState();
+      UI.setCheckedHint();
+      UI.updateScreen();
+      UI.updateLanguageTexts();
+    },
+
+    updateLanguageTexts: () => {
+      const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
+
+      set('btn-refresh-text', State.isFetching ? t('updating') : t('refresh_now'));
+      set('btn-open-sheet-text', t('open_sheet'));
+      set('btn-manual-text', t('help'));
+      set('data-source-info', t('source_google'));
+      set('menu-select-title', t('menu_select_title'));
+      set('menu-select-subtitle', t('menu_select_subtitle'));
+      set('menu-pending-label', t('menu_pending'));
+      set('menu-saldo-check-label', t('saldo_check_label'));
+      set('menu-saldodefeito-label', t('saldo_def_label'));
+      set('menu-period-label', t('period_label'));
+      set('conn-status-text', t('live'));
+      set('theme-txt', State.isDarkMode ? t('theme_light') : t('theme_dark'));
+      const headerInfo = document.querySelector('header .hidden.md\\:block');
+      if (headerInfo) {
+        const h1 = headerInfo.querySelector('h1');
+        const p = headerInfo.querySelector('p');
+        if (h1) h1.textContent = t('header_main_title');
+        if (p) p.textContent = t('header_main_subtitle');
+      }
+      set('kpi-label-checked', t('kpi_checked'));
+      set('kpi-label-defects', t('kpi_defects'));
+      set('kpi-label-repairs', t('kpi_repairs'));
+      set('kpi-label-scrap', t('kpi_scrap'));
+      set('top1-title', t('top1_defect'));
+      set('top1-defeito-periodo', t('today'));
+      set('top3-title', t('top3_pns'));
+      set('top3-base', t('base_saldo_def'));
+      set('pareto-title-text', t('pareto_defects'));
+      set('status-title-text', t('status_general'));
+      set('status-subtitle', t('status_compare'));
+      set('dash-subtitle', t('dashboard_realtime'));
+      set('defect-subtitle', t('defect_subtitle'));
+      const dashTitle = document.getElementById('dash-title');
+      if (dashTitle && State.currentScreen === 'dashboard') {
+        dashTitle.innerText = !State.currentFilter
+          ? t('screen_overview_all')
+          : `${t('screen_monitoring')}: ${State.currentFilter.join(' / ')}`;
+      }
+
+      const menuChartBtn = document.querySelector('button[onclick="openMissingCheckScreen()"]');
+      if (menuChartBtn) {
+        menuChartBtn.innerHTML = `<i class="ph-bold ph-chart-bar"></i>${t('menu_view_chart_check')}`;
+      }
+
+      const overviewCard = document.querySelector('div[onclick="selectPN(\'GERAL\')"]');
+      if (overviewCard) {
+        const h3 = overviewCard.querySelector('h3');
+        const p = overviewCard.querySelector('p');
+        if (h3) h3.textContent = t('menu_overview_card_title');
+        if (p) p.textContent = t('menu_overview_card_subtitle');
+      }
+
+      const backMenuBtn = document.querySelector('button[onclick="backToMenu()"]');
+      if (backMenuBtn) backMenuBtn.innerHTML = `<i class="ph-bold ph-arrow-left"></i> ${t('back')}`;
+      const backMissingBtn = document.querySelector('button[onclick="backToMenuFromMissingCheck()"]');
+      if (backMissingBtn) backMissingBtn.innerHTML = `<i class="ph-bold ph-arrow-left"></i> ${t('back')}`;
+      const backDefectBtn = document.querySelector('button[onclick="backToDashboardFromDefect()"]');
+      if (backDefectBtn) backDefectBtn.innerHTML = `<i class="ph-bold ph-arrow-left"></i> ${t('back')}`;
+
+      const searchInput = document.getElementById('quick-search');
+      if (searchInput) searchInput.placeholder = t('search_placeholder');
+      const searchLabel = searchInput?.closest('.flex-1')?.querySelector('label');
+      if (searchLabel) searchLabel.innerHTML = `<i class="ph-bold ph-magnifying-glass mr-1"></i> ${t('search_label')}`;
+
+      const quickSort = document.getElementById('quick-sort');
+      if (quickSort) {
+        const optDefault = quickSort.querySelector('option[value=""]');
+        const optSaldoDef = quickSort.querySelector('option[value="saldodef_desc"]');
+        const optDateDesc = quickSort.querySelector('option[value="date_desc"]');
+        const optDateAsc = quickSort.querySelector('option[value="date_asc"]');
+        if (optDefault) optDefault.textContent = t('sort_default');
+        if (optSaldoDef) optSaldoDef.textContent = t('sort_saldodef_desc');
+        if (optDateDesc) optDateDesc.textContent = t('sort_date_desc');
+        if (optDateAsc) optDateAsc.textContent = t('sort_date_asc');
+      }
+
+      const clearFiltersBtn = document.getElementById('clear-filters');
+      if (clearFiltersBtn) clearFiltersBtn.innerHTML = `<i class="ph-bold ph-x-circle"></i> ${t('clear')}`;
+
+      const activeLabel = document.querySelector('#active-filters > span');
+      if (activeLabel) activeLabel.textContent = t('active_filters');
+
+      const filterBadges = document.querySelectorAll('#screen-dashboard .flex.items-center.gap-2.bg-gray-50 span.text-\\[10px\\]');
+      if (filterBadges[0]) filterBadges[0].textContent = t('filter_balance');
+      if (filterBadges[1]) filterBadges[1].textContent = t('filter_balance_def');
+      if (filterBadges[2]) filterBadges[2].textContent = t('kpi_scrap');
+
+      const fltDay = document.getElementById('flt-day');
+      const fltMonth = document.getElementById('flt-month');
+      const fltYear = document.getElementById('flt-year');
+      const fltBlockTitle = fltDay?.closest('.flex.flex-wrap.items-end.gap-3')?.previousElementSibling;
+      if (fltBlockTitle) {
+        const ps = fltBlockTitle.querySelectorAll('p');
+        if (ps[0]) ps[0].textContent = t('filter_total_checked_title');
+        if (ps[1]) ps[1].textContent = t('filter_total_checked_subtitle');
+      }
+      if (fltDay?.previousElementSibling) fltDay.previousElementSibling.textContent = t('hint_day');
+      if (fltMonth?.previousElementSibling) fltMonth.previousElementSibling.textContent = t('hint_month');
+      if (fltYear?.previousElementSibling) fltYear.previousElementSibling.textContent = t('hint_year');
+      const clearDateBtn = document.getElementById('flt-clear');
+      if (clearDateBtn) clearDateBtn.innerHTML = `<i class="ph-bold ph-eraser"></i> ${t('clear')}`;
+
+      const tableTitleEl = document.querySelector('#screen-dashboard .ph-bold.ph-table')?.parentElement;
+      if (tableTitleEl) {
+        tableTitleEl.innerHTML = `<i class="ph-bold ph-table"></i> ${t('table_title')}
+                <span class="group relative">
+                  <i class="ph-bold ph-info text-gray-400 hover:text-gray-600 cursor-help"></i>
+                  <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-50">
+                    ${t('table_tooltip')}
+                  </span>
+                </span>`;
+      }
+
+      const linesLabel = document.getElementById('tbl-page-size')?.parentElement?.querySelector('span');
+      if (linesLabel) linesLabel.textContent = t('table_lines');
+      const prevBtn = document.getElementById('tbl-prev');
+      if (prevBtn) prevBtn.innerHTML = `<i class="ph-bold ph-caret-left"></i> ${t('table_prev')}`;
+      const nextBtn = document.getElementById('tbl-next');
+      if (nextBtn) nextBtn.innerHTML = `${t('table_next')} <i class="ph-bold ph-caret-right"></i>`;
+
+      const headerAreaBtn = document.getElementById('btn-area');
+      if (headerAreaBtn) {
+        headerAreaBtn.innerHTML = `<i class="ph-bold ph-map-trifold"></i><span>${t('header_area_btn')}</span>`;
+        headerAreaBtn.title = t('header_area_btn_title');
+      }
+      const headerBackupBtn = document.getElementById('btn-backup');
+      if (headerBackupBtn) headerBackupBtn.title = t('header_backup_btn_title');
+
+      const groupHeaders = document.querySelectorAll('#screen-dashboard table thead tr:first-child th');
+      if (groupHeaders.length >= 5) {
+        groupHeaders[0].textContent = t('table_group_general');
+        groupHeaders[1].textContent = t('table_group_shift1');
+        groupHeaders[2].textContent = t('table_group_shift2');
+        groupHeaders[3].textContent = t('table_group_shift3');
+        groupHeaders[4].textContent = t('table_group_final');
+      }
+      const colHeaders = document.querySelectorAll('#screen-dashboard table thead tr:nth-child(2) th');
+      if (colHeaders.length >= 21) {
+        const vals = [
+          t('col_prod_date'), t('col_shift'), t('col_die_number'), t('col_part_number'), t('col_qty_to_check'), t('col_defect_type'),
+          t('col_checked_1'), t('col_repaired_1'), t('col_scrap_1'), t('col_who_1'),
+          t('col_checked_2'), t('col_repaired_2'), t('col_scrap_2'), t('col_who_2'),
+          t('col_checked_3'), t('col_repaired_3'), t('col_scrap_3'), t('col_who_3'),
+          t('col_scrap_total'), t('col_to_check'), t('col_defect_qty')
+        ];
+        vals.forEach((label, idx) => { if (colHeaders[idx]) colHeaders[idx].textContent = label; });
+      }
+
+      const missingTitle = document.querySelector('#screen-missingcheck h2');
+      if (missingTitle) missingTitle.textContent = t('missingcheck_title');
+      const missingSubtitle = document.querySelector('#screen-missingcheck h2 + p');
+      if (missingSubtitle) missingSubtitle.textContent = t('missingcheck_subtitle');
+      const missingChartTitle = document.querySelector('#screen-missingcheck h4');
+      if (missingChartTitle) missingChartTitle.innerHTML = `<i class="ph-bold ph-chart-bar text-toyota-red"></i> ${t('missingcheck_chart_title')}`;
+      const missingSortLabel = document.querySelector('#screen-missingcheck #missingcheck-sort')?.parentElement?.querySelector('span');
+      if (missingSortLabel) missingSortLabel.textContent = t('missingcheck_sort');
+      const missingSort = document.getElementById('missingcheck-sort');
+      if (missingSort) {
+        const optOld = missingSort.querySelector('option[value="oldest"]');
+        const optNew = missingSort.querySelector('option[value="newest"]');
+        if (optOld) optOld.textContent = t('missingcheck_sort_oldest');
+        if (optNew) optNew.textContent = t('missingcheck_sort_newest');
+      }
+      const missingHint = document.querySelector('#screen-missingcheck p.text-\\[11px\\]');
+      if (missingHint) missingHint.textContent = t('missingcheck_hint');
+
+      const defectChartTitle = document.querySelector('#screen-defect h4');
+      if (defectChartTitle) defectChartTitle.innerHTML = `<i class="ph-bold ph-chart-bar text-toyota-red"></i> ${t('defect_chart_title')}`;
+      const defectChartLegend = document.querySelector('#screen-defect h4 + span');
+      if (defectChartLegend) defectChartLegend.textContent = t('defect_chart_legend');
+
+      const connFooter = document.querySelector('#screen-menu .mt-10 p.text-xs');
+      if (connFooter) {
+        connFooter.innerHTML = `<span class="inline-flex items-center gap-1">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" id="conn-status-pulse"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500" id="conn-status-dot"></span>
+            </span>
+            <span id="conn-status-text">${t('status_online')}</span>
+          </span>
+          • 
+          ${t('conn_footer')}`;
+      }
+
+      if (document.getElementById('area-modal') && !document.getElementById('area-modal').classList.contains('hidden')) {
+        const areaModal = document.getElementById('area-modal');
+        areaModal.setAttribute('aria-label', `${t('details')} ${t('area_repair')}`);
+        const areaTitle = areaModal.querySelector('h3');
+        if (areaTitle) areaTitle.innerHTML = `<i class="ph-bold ph-map-trifold text-blue-600"></i> ${t('area_repair')}`;
+        UI.updateAreaModalContent();
+      }
+      if (document.getElementById('manual-modal') && !document.getElementById('manual-modal').classList.contains('hidden')) {
+        UI.localizeManualModal(document.getElementById('manual-modal'));
+      }
+      UI.updateConnectionStatus();
+
+      const rangeEl = document.getElementById('menu-range-total');
+      if (rangeEl && rangeEl.textContent && /Carregando|Loading|読み込み/.test(rangeEl.textContent)) {
+        rangeEl.textContent = t('period_loading');
+      }
+      const lastUpdate = document.getElementById('last-update-txt');
+      if (lastUpdate && /(Atualizando|Sincronizando|Updating|更新)/i.test(lastUpdate.textContent || '')) {
+        lastUpdate.textContent = t('updating');
+      }
     },
 
     initTheme: () => {
@@ -2240,7 +3021,7 @@ const ToyotaQC = (function() {
       const txtEl = document.getElementById('theme-txt');
       if (ico && txtEl) {
         ico.className = isDark ? 'ph-bold ph-sun' : 'ph-bold ph-moon';
-        txtEl.textContent = isDark ? 'Claro' : 'Escuro';
+        txtEl.textContent = isDark ? t('theme_light') : t('theme_dark');
       }
       UI.refreshChartsTheme();
     },
@@ -2293,6 +3074,7 @@ const ToyotaQC = (function() {
 
     bindEvents: () => {
       document.getElementById('btn-theme')?.addEventListener('click', () => UI.applyTheme(State.isDarkMode ? 'light' : 'dark'));
+      document.getElementById('lang-select')?.addEventListener('change', (e) => UI.applyLanguage(e.target.value));
       document.getElementById('btn-open-sheet')?.addEventListener('click', () => UI.openLoginModal());
       document.getElementById('btn-refresh-now')?.addEventListener('click', () => UI.manualRefresh());
       document.getElementById('conn-banner-close')?.addEventListener('click', () => UI.hideConnBanner());
@@ -2385,23 +3167,23 @@ const ToyotaQC = (function() {
         case 'online':
           pulse.classList.add('bg-green-400');
           dot.classList.add('bg-green-500');
-          text.textContent = 'Online';
+          text.textContent = t('status_online');
           document.body.classList.add('conn-status-online');
-          if (sourceInfo) sourceInfo.textContent = 'Fonte: Google Sheets (tempo real)';
+          if (sourceInfo) sourceInfo.textContent = t('source_realtime');
           break;
         case 'cache':
           pulse.classList.add('bg-yellow-400');
           dot.classList.add('bg-yellow-500');
-          text.textContent = 'Cache';
+          text.textContent = t('status_cache');
           document.body.classList.add('conn-status-cache');
-          if (sourceInfo) sourceInfo.textContent = 'Fonte: Cache local';
+          if (sourceInfo) sourceInfo.textContent = t('source_cache');
           break;
         case 'offline':
           pulse.classList.add('bg-red-400');
           dot.classList.add('bg-red-500');
-          text.textContent = 'Falha';
+          text.textContent = t('status_fail');
           document.body.classList.add('conn-status-offline');
-          if (sourceInfo) sourceInfo.textContent = 'Fonte: Offline';
+          if (sourceInfo) sourceInfo.textContent = t('source_offline');
           break;
       }
     },
@@ -2426,7 +3208,7 @@ const ToyotaQC = (function() {
       
       el.innerText = text 
         ? text 
-        : `Atualizado: ${Utils.formatDateFull(now)}`;
+        : `${t('updated_prefix')}: ${Utils.formatDateFull(now)}`;
     },
 
     openLoginModal: () => {
@@ -2446,7 +3228,13 @@ const ToyotaQC = (function() {
 
     openManualModal: () => {
       let modal = document.getElementById('manual-modal');
+      if (modal && modal.dataset.i18nLang !== State.language) {
+        modal.remove();
+        modal = null;
+      }
       if (!modal) modal = UI.createManualModal();
+      modal.dataset.i18nLang = State.language;
+      UI.localizeManualModal(modal);
       modal.classList.remove('hidden');
       modal.classList.add('flex');
     },
@@ -2454,6 +3242,151 @@ const ToyotaQC = (function() {
     closeManualModal: () => {
       const modal = document.getElementById('manual-modal');
       if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+    },
+
+    localizeManualModal: (modal) => {
+      if (!modal) return;
+      const lang = I18N[State.language] ? State.language : 'pt';
+      const manuals = {
+        pt: {
+          title: 'Manual do Sistema',
+          overviewTitle: 'Visao Geral',
+          overviewText: 'Dashboard para monitoramento da qualidade das prensas. Os dados sao carregados automaticamente a cada 10 minutos da planilha Google Sheets.',
+          navTitle: 'Navegacao',
+          navItems: [
+            'Menu principal: selecione uma linha especifica ou visao geral',
+            'Botao "Abrir Planilha": acessa a planilha fonte',
+            'Botao "Backup": cria e gerencia backups',
+            'Botao "Area": visualiza detalhamento da area do reparo',
+            'Clique no Pareto para ver detalhes do defeito'
+          ],
+          backupTitle: 'Backup e Restauracao',
+          backupItems: [
+            'Criar backup JSON com dados atuais',
+            'Restaurar dados de um JSON salvo anteriormente',
+            'Gerenciar backups recentes e download'
+          ],
+          shortcutsTitle: 'Atalhos',
+          kpiTitle: 'KPIs',
+          kpiItems: [
+            'Top 1 defeito e Top 3 PNs',
+            '% retrabalho e % scrap',
+            'Area do reparo e comparativo mensal/anual'
+          ],
+          closeText: 'Entendi'
+        },
+        en: {
+          title: 'System Manual',
+          overviewTitle: 'Overview',
+          overviewText: 'Dashboard for press quality monitoring. Data is automatically loaded every 10 minutes from Google Sheets.',
+          navTitle: 'Navigation',
+          navItems: [
+            'Main menu: select a production line or full overview',
+            '"Open Sheet" button: open source spreadsheet',
+            '"Backup" button: create and manage backups',
+            '"Area" button: view repair area details',
+            'Click Pareto bars to view defect details'
+          ],
+          backupTitle: 'Backup and Restore',
+          backupItems: [
+            'Create JSON backup with current data',
+            'Restore data from a previously saved JSON',
+            'Manage recent backups and downloads'
+          ],
+          shortcutsTitle: 'Shortcuts',
+          kpiTitle: 'KPIs',
+          kpiItems: [
+            'Top 1 defect and Top 3 PNs',
+            '% rework and % scrap',
+            'Repair area and monthly/yearly comparison'
+          ],
+          closeText: 'Understood'
+        },
+        ja: {
+          title: 'システムマニュアル',
+          overviewTitle: '概要',
+          overviewText: 'プレス品質監視ダッシュボードです。Google Sheets から10分ごとに自動更新されます。',
+          navTitle: '操作',
+          navItems: [
+            'メニューでラインまたは全体表示を選択',
+            '「シートを開く」で元データを表示',
+            '「Backup」でバックアップを管理',
+            '「Area」で補修エリア詳細を表示',
+            'パレートの棒をクリックすると詳細表示'
+          ],
+          backupTitle: 'バックアップ/復元',
+          backupItems: [
+            '現在データをJSONで保存',
+            '保存済みJSONから復元',
+            '最近のバックアップを管理/再ダウンロード'
+          ],
+          shortcutsTitle: 'ショートカット',
+          kpiTitle: 'KPI',
+          kpiItems: [
+            '不良 Top1 と PN Top3',
+            '手直し率 と スクラップ率',
+            '補修エリア と 月次/年次比較'
+          ],
+          closeText: '了解'
+        }
+      };
+
+      const m = manuals[lang] || manuals.pt;
+      modal.setAttribute('aria-label', m.title);
+      modal.innerHTML = `
+        <div class="w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-5 max-h-[80vh] overflow-y-auto">
+          <div class="flex items-center justify-between sticky top-0 bg-white dark:bg-gray-900 pb-3 border-b border-gray-200 dark:border-gray-800">
+            <h3 class="text-lg font-extrabold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <i class="ph-bold ph-book text-toyota-red"></i>
+              ${m.title} ${CONFIG.VERSION}
+            </h3>
+            <button onclick="ToyotaQC.UI.closeManualModal()" class="text-gray-500 hover:text-toyota-red">
+              <i class="ph-bold ph-x"></i>
+            </button>
+          </div>
+          <div class="mt-4 space-y-4">
+            <div class="manual-section">
+              <h4>📊 ${m.overviewTitle}</h4>
+              <p class="text-sm text-gray-600 dark:text-gray-300">${m.overviewText}</p>
+            </div>
+            <div class="manual-section">
+              <h4>🎯 ${m.navTitle}</h4>
+              <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                ${m.navItems.map(item => `<li>${item}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="manual-section">
+              <h4>💾 ${m.backupTitle}</h4>
+              <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-300 mt-1">
+                ${m.backupItems.map(item => `<li>${item}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="manual-section">
+              <h4>⌨️ ${m.shortcutsTitle}</h4>
+              <div class="grid grid-cols-2 gap-2 text-sm">
+                <div><span class="keyboard-shortcut">Ctrl + R</span> ${t('refresh_now')}</div>
+                <div><span class="keyboard-shortcut">Ctrl + L</span> ${t('clear')}</div>
+                <div><span class="keyboard-shortcut">Ctrl + B</span> Backup</div>
+                <div><span class="keyboard-shortcut">Esc</span> Close</div>
+                <div><span class="keyboard-shortcut">?</span> Help</div>
+                <div><span class="keyboard-shortcut">Ctrl + H</span> Help</div>
+              </div>
+            </div>
+            <div class="manual-section">
+              <h4>📈 ${m.kpiTitle}</h4>
+              <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-300 mt-1">
+                ${m.kpiItems.map(item => `<li>${item}</li>`).join('')}
+              </ul>
+            </div>
+          </div>
+          <div class="mt-6 pt-3 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
+            <span class="text-[10px] text-gray-400">v${CONFIG.VERSION}</span>
+            <button onclick="ToyotaQC.UI.closeManualModal()" class="px-4 py-2 bg-toyota-red text-white rounded-lg text-sm font-bold hover:brightness-95 transition">
+              ${m.closeText}
+            </button>
+          </div>
+        </div>
+      `;
     },
 
     createManualModal: () => {
@@ -2557,7 +3490,10 @@ const ToyotaQC = (function() {
 
         if (State.timer <= 0) {
           State.timer = CONFIG.UPDATE_INTERVAL;
-          DataManager.fetchData(false);
+          const bar = document.getElementById('progress-bar');
+          if (bar) bar.style.width = '0%';
+          // No ciclo automático, forçar sincronização real (sem usar cache local).
+          DataManager.fetchData(true);
         }
 
         if (State.manualCooldownLeft > 0) {
@@ -2596,17 +3532,17 @@ const ToyotaQC = (function() {
       if (State.isFetching) {
         btn.classList.add('btn-disabled');
         btn.disabled = true;
-        txtEl.textContent = 'Atualizando...';
+        txtEl.textContent = t('updating');
       } else if (State.manualCooldownLeft > 0) {
         btn.classList.add('btn-disabled');
         btn.disabled = true;
         const mm = Math.floor(State.manualCooldownLeft / 60);
         const ss = State.manualCooldownLeft % 60;
-        txtEl.textContent = `Aguarde ${Utils.pad2(mm)}:${Utils.pad2(ss)}`;
+        txtEl.textContent = `${t('wait_prefix')} ${Utils.pad2(mm)}:${Utils.pad2(ss)}`;
       } else {
         btn.classList.remove('btn-disabled');
         btn.disabled = false;
-        txtEl.textContent = 'Atualizar agora';
+        txtEl.textContent = t('refresh_now');
       }
     },
 
@@ -2618,7 +3554,7 @@ const ToyotaQC = (function() {
       overlay.innerHTML = `
         <div class="text-center">
           <div class="inline-block h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-toyota-red"></div>
-          <p class="mt-3 text-sm font-semibold text-gray-600 dark:text-gray-300">Carregando dados...</p>
+          <p class="mt-3 text-sm font-semibold text-gray-600 dark:text-gray-300">${t('loading_data')}</p>
         </div>
       `;
       document.body.appendChild(overlay);
@@ -2662,12 +3598,14 @@ const ToyotaQC = (function() {
       const rangeDetailsEl = document.getElementById('menu-range-details');
       
       if (saldoTotal > 0 && minD && maxD) {
-        rangeEl.textContent = `De ${Utils.formatDateShort(minD)} até ${Utils.formatDateShort(maxD)}`;
+        rangeEl.textContent = t('period_from_to')
+          .replace('{from}', Utils.formatDateShort(minD))
+          .replace('{to}', Utils.formatDateShort(maxD));
         if (rangeDetailsEl) {
           rangeDetailsEl.textContent = `min: ${Utils.formatDateShort(minD)} | max: ${Utils.formatDateShort(maxD)}`;
         }
       } else {
-        rangeEl.textContent = saldoTotal > 0 ? 'Período: (sem data válida)' : 'Sem pendências';
+        rangeEl.textContent = saldoTotal > 0 ? t('period_invalid') : t('no_pending');
         if (rangeDetailsEl) rangeDetailsEl.textContent = 'min: -- | max: --';
       }
       
@@ -2698,12 +3636,12 @@ const ToyotaQC = (function() {
             <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
               <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                 <i class="ph-bold ph-map-trifold text-blue-600"></i>
-                Área do Reparo
+                ${t('area_repair')}
               </h3>
               <div class="flex items-center gap-2">
                 <button onclick="ToyotaQC.UI.openAreaModal()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30">
                   <i class="ph-bold ph-arrow-square-out"></i>
-                  Detalhes
+                  ${t('details')}
                 </button>
                 <button id="toggle-area-card" onclick="ToyotaQC.UI.toggleAreaCard()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
                   <i class="ph-bold ph-minus-circle"></i>
@@ -2725,13 +3663,13 @@ const ToyotaQC = (function() {
             <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
               <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                 <i class="ph-bold ph-chart-bar text-toyota-red"></i>
-                Comparativo: Saldo Defeito vs Scrap
+                ${t('comparative_title')}
               </h3>
               <div class="flex items-center gap-2">
                 <div class="flex items-center gap-1">
                   <select id="comparative-view" class="text-xs border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
-                    <option value="monthly" ${State.comparativeChart.view === 'monthly' ? 'selected' : ''}>Mensal</option>
-                    <option value="yearly" ${State.comparativeChart.view === 'yearly' ? 'selected' : ''}>Anual</option>
+                    <option value="monthly" ${State.comparativeChart.view === 'monthly' ? 'selected' : ''}>${t('monthly')}</option>
+                    <option value="yearly" ${State.comparativeChart.view === 'yearly' ? 'selected' : ''}>${t('yearly')}</option>
                   </select>
                   <select id="comparative-year" class="text-xs border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
                     <!-- Preenchido via JavaScript -->
@@ -2754,17 +3692,17 @@ const ToyotaQC = (function() {
       if (!State.menuCards.areaExpanded || !State.menuCards.comparativeExpanded) {
         html += `
           <div class="col-span-full bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-3 flex flex-wrap items-center gap-2">
-            <span class="text-xs font-semibold text-gray-600 dark:text-gray-300">Cards ocultos:</span>
+            <span class="text-xs font-semibold text-gray-600 dark:text-gray-300">${t('hidden_cards')}</span>
             ${!State.menuCards.areaExpanded ? `
               <button onclick="ToyotaQC.UI.toggleAreaCard()" class="text-xs px-2 py-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-1">
                 <i class="ph-bold ph-plus-circle text-blue-600"></i>
-                Área do Reparo
+                ${t('area_repair')}
               </button>
             ` : ''}
             ${!State.menuCards.comparativeExpanded ? `
               <button onclick="ToyotaQC.UI.toggleComparativeCard()" class="text-xs px-2 py-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-1">
                 <i class="ph-bold ph-plus-circle text-toyota-red"></i>
-                Comparativo
+                ${t('comparative_short')}
               </button>
             ` : ''}
           </div>
@@ -2842,7 +3780,9 @@ const ToyotaQC = (function() {
       document.getElementById('screen-missingcheck').classList.add('hidden');
 
       const title = document.getElementById('dash-title');
-      title.innerText = (filter === 'GERAL') ? "VISÃO GERAL (TODOS)" : "MONITORAMENTO: " + filter.join(' / ');
+      title.innerText = (filter === 'GERAL')
+        ? t('screen_overview_all')
+        : `${t('screen_monitoring')}: ${filter.join(' / ')}`;
 
       // Criar botões na visão geral
       UI.createBackupButtons();
@@ -2974,7 +3914,7 @@ const ToyotaQC = (function() {
     fillSelect: (id, options, selected, keepAllOption) => {
       const sel = document.getElementById(id);
       if (!sel) return;
-      const first = keepAllOption ? `<option value="">Todos</option>` : '';
+      const first = keepAllOption ? `<option value="">${t('filter_all')}</option>` : '';
       sel.innerHTML = first + options.map(v => {
         const safe = Utils.escapeHtml(v);
         return `<option value="${safe}">${safe}</option>`;
@@ -2991,10 +3931,10 @@ const ToyotaQC = (function() {
 
     setCheckedHint: () => {
       const parts = [];
-      if (State.checkedFilter.day) parts.push(`Dia ${State.checkedFilter.day}`);
-      if (State.checkedFilter.month) parts.push(`Mês ${State.checkedFilter.month}`);
-      if (State.checkedFilter.year) parts.push(`Ano ${State.checkedFilter.year}`);
-      document.getElementById('kpi-checked-hint').textContent = parts.length ? `Filtro: ${parts.join(' • ')}` : 'Filtro: Todos';
+      if (State.checkedFilter.day) parts.push(`${t('hint_day')} ${State.checkedFilter.day}`);
+      if (State.checkedFilter.month) parts.push(`${t('hint_month')} ${State.checkedFilter.month}`);
+      if (State.checkedFilter.year) parts.push(`${t('hint_year')} ${State.checkedFilter.year}`);
+      document.getElementById('kpi-checked-hint').textContent = parts.length ? `${t('hint_filter')}: ${parts.join(' • ')}` : `${t('hint_filter')}: ${t('filter_all')}`;
     },
 
     checkAlerts: (precomputedStats = null) => {
@@ -3046,8 +3986,8 @@ const ToyotaQC = (function() {
       document.getElementById('kpi-repairs').innerText = stats.repairs.toLocaleString();
       document.getElementById('kpi-scrap').innerText = stats.scrap.toLocaleString();
       
-      document.getElementById('pct-retrabalho').innerText = `${stats.reworkPct}% retrabalho`;
-      document.getElementById('pct-scrap').innerText = `${stats.scrapPct}% scrap`;
+      document.getElementById('pct-retrabalho').innerText = `${stats.reworkPct}% ${t('pct_rework_suffix')}`;
+      document.getElementById('pct-scrap').innerText = `${stats.scrapPct}% ${t('pct_scrap_suffix')}`;
       
       UI.setCheckedHint();
 
@@ -3085,16 +4025,16 @@ const ToyotaQC = (function() {
       const top1Container = document.getElementById('top1-defeito-content');
       if (top1Container) {
         if (topDefect) {
-          const safeTopDefectName = Utils.escapeHtml(topDefect.name);
+          const safeTopDefectName = Utils.escapeHtml(Utils.translateDefect(topDefect.name));
           top1Container.innerHTML = `
             <div class="text-center">
               <p class="text-sm font-bold text-toyota-red">${safeTopDefectName}</p>
               <p class="text-2xl font-black text-gray-800 dark:text-gray-100">${Utils.formatNumber(topDefect.qty)}</p>
-              <p class="text-[10px] text-gray-400">Saldo Defeito</p>
+              <p class="text-[10px] text-gray-400">${t('defect_balance')}</p>
             </div>
           `;
         } else {
-          top1Container.innerHTML = '<p class="text-xs text-gray-500">Nenhum defeito registrado</p>';
+          top1Container.innerHTML = `<p class="text-xs text-gray-500">${t('no_defect_registered')}</p>`;
         }
       }
       
@@ -3108,11 +4048,11 @@ const ToyotaQC = (function() {
                 <span class="font-bold text-sm">${Utils.escapeHtml(pn.pn)}</span>
               </div>
               <p class="text-lg font-black text-red-600 dark:text-red-500">${Utils.formatNumber(pn.qty)}</p>
-              <p class="text-[9px] text-gray-400">Total Reparos</p>
+              <p class="text-[9px] text-gray-400">${t('total_repairs')}</p>
             </div>
           `).join('');
         } else {
-          top3Container.innerHTML = '<p class="text-xs text-gray-500 col-span-3 text-center">Nenhum PN com reparos</p>';
+          top3Container.innerHTML = `<p class="text-xs text-gray-500 col-span-3 text-center">${t('no_pn_repairs')}</p>`;
         }
       }
     },
@@ -3152,17 +4092,18 @@ const ToyotaQC = (function() {
       const end = start + State.tablePager.pageSize;
       const pageRows = tableData.slice(start, end);
 
-      document.getElementById('table-count').innerText = `${tableData.length} Reg`;
+      document.getElementById('table-count').innerText = `${tableData.length} ${t('table_reg_short')}`;
 
       const fragment = document.createDocumentFragment();
 
       for (const row of pageRows) {
         const tipoDefRaw = Utils.txt(row[COL.tipoDef]);
+        const tipoDefDisplay = Utils.translateDefect(tipoDefRaw);
         const safeData = Utils.safeTxt(row[COL.data]);
         const safeTurno = Utils.safeTxt(row[COL.turno]);
         const safeDie = Utils.safeTxt(row[COL.die]);
         const safePart = Utils.safeTxt(row[COL.part]);
-        const safeTipoDef = Utils.escapeHtml(tipoDefRaw);
+        const safeTipoDef = Utils.escapeHtml(tipoDefDisplay);
 
         const chec1 = Utils.int(row[COL.chec1]);
         const chec2 = Utils.int(row[COL.chec2]);
@@ -3236,7 +4177,11 @@ const ToyotaQC = (function() {
 
     updateTablePagerUI: () => {
       const info = document.getElementById('tbl-page-info');
-      if (info) info.textContent = `Página ${State.tablePager.page}/${State.tablePager.totalPages}`;
+      if (info) {
+        info.textContent = t('table_page')
+          .replace('{page}', String(State.tablePager.page))
+          .replace('{total}', String(State.tablePager.totalPages));
+      }
 
       const prev = document.getElementById('tbl-prev');
       const next = document.getElementById('tbl-next');
@@ -3285,15 +4230,15 @@ const ToyotaQC = (function() {
         totalAll += qty;
       });
 
-      document.getElementById('defect-title').innerHTML = `DEFEITO: <span style="color: #EB0A1E">${Utils.escapeHtml(defect)}</span>`;
-      document.getElementById('defect-total').innerHTML = `<span style="font-size: 14px">${totalAll.toLocaleString()}</span> (Saldo Defeito)`;
+      document.getElementById('defect-title').innerHTML = `${t('defect_prefix')}: <span style="color: #EB0A1E">${Utils.escapeHtml(Utils.translateDefect(defect))}</span>`;
+      document.getElementById('defect-total').innerHTML = `<span style="font-size: 14px">${totalAll.toLocaleString()}</span> (${t('defect_total_suffix')})`;
 
       const items = Object.keys(countsByPN).map(pn => ({ pn, v: countsByPN[pn] })).sort((a, b) => b.v - a.v);
 
       let display = items.slice(0, CONFIG.TOP_PNS);
       if (items.length > CONFIG.TOP_PNS) {
         const othersSum = items.slice(CONFIG.TOP_PNS).reduce((acc, x) => acc + x.v, 0);
-        if (othersSum > 0) display.push({ pn: 'OUTROS', v: othersSum });
+        if (othersSum > 0) display.push({ pn: t('other_label'), v: othersSum });
       }
 
       const labels = display.map(x => x.pn);
@@ -3336,7 +4281,7 @@ const ToyotaQC = (function() {
         }
       }
 
-      document.getElementById('missingcheck-total').innerText = `${(total || 0).toLocaleString()} peças`;
+      document.getElementById('missingcheck-total').innerText = `${(total || 0).toLocaleString()} ${t('pieces')}`;
 
       let items = Object.values(byPN);
       const sortMode = document.getElementById('missingcheck-sort')?.value || 'oldest';
@@ -3351,7 +4296,7 @@ const ToyotaQC = (function() {
       const display = [...top];
       if (rest.length) {
         const sum = rest.reduce((acc, x) => acc + (x.qty || 0), 0);
-        if (sum > 0) display.push({ pn: 'OUTROS', qty: sum, minTs: null, maxTs: null });
+        if (sum > 0) display.push({ pn: t('other_label'), qty: sum, minTs: null, maxTs: null });
       }
 
       const labels = display.map(x => x.pn);

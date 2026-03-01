@@ -108,13 +108,13 @@
           <button id="btn-open-sheet"
             class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
             <i class="ph-bold ph-google-logo"></i>
-            Abrir Planilha
+            <span id="btn-open-sheet-text">Abrir Planilha</span>
           </button>
 
           <button id="btn-manual"
             class="inline-flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-200 hover:text-toyota-red bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
             <i class="ph-bold ph-question"></i>
-            Ajuda
+            <span id="btn-manual-text">Ajuda</span>
           </button>
 
           <button id="btn-theme"
@@ -122,6 +122,13 @@
             <i id="theme-ico" class="ph-bold ph-moon"></i>
             <span id="theme-txt">Escuro</span>
           </button>
+
+          <select id="lang-select"
+            class="text-xs font-bold text-gray-600 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-700">
+            <option value="pt">PT</option>
+            <option value="en">EN</option>
+            <option value="ja">日本語</option>
+          </select>
 
           <div class="text-right hidden sm:block">
             <div class="flex items-center gap-2 justify-end">
@@ -148,8 +155,8 @@
     <!-- MENU -->
     <div id="screen-menu" class="absolute inset-0 overflow-y-auto p-6 flex flex-col items-center justify-start transition-opacity duration-300">
       <div class="text-center mb-6">
-        <h2 class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Selecione o Projeto que Deseja visualizar</h2>
-        <p class="text-gray-500 dark:text-gray-400">Escolha um Part Number ou visualize o panorama geral.</p>
+        <h2 id="menu-select-title" class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Selecione o Projeto que Deseja visualizar</h2>
+        <p id="menu-select-subtitle" class="text-gray-500 dark:text-gray-400">Escolha um Part Number ou visualize o panorama geral.</p>
       </div>
 
       <div class="mb-8 w-full max-w-3xl">
@@ -159,13 +166,13 @@
               <i class="ph-fill ph-warning-circle text-xl text-toyota-red"></i>
             </div>
             <div>
-              <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Pendências</p>
+              <p id="menu-pending-label" class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Pendências</p>
               <div class="flex flex-col gap-0.5">
                 <p class="text-base font-extrabold text-gray-800 dark:text-gray-100">
-                  Saldo (checagem): <span id="menu-saldo-total" class="text-toyota-red">—</span>
+                  <span id="menu-saldo-check-label">(Pecas a checar):</span> <span id="menu-saldo-total" class="text-toyota-red">—</span>
                 </p>
                 <p class="text-base font-extrabold text-gray-800 dark:text-gray-100">
-                  Saldo defeito: <span id="menu-saldodefeito-total" class="text-yellow-600">—</span>
+                  <span id="menu-saldodefeito-label">Peças com defeito:</span> <span id="menu-saldodefeito-total" class="text-yellow-600">—</span>
                 </p>
               </div>
             </div>
@@ -173,7 +180,7 @@
 
           <div class="text-left sm:text-right flex flex-col gap-2">
             <div>
-              <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Período</p>
+              <p id="menu-period-label" class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Período</p>
               <!-- Dados do período também no menu -->
               <p id="menu-range-total" class="text-sm font-semibold text-gray-600 dark:text-gray-300">Carregando período...</p>
               <p id="menu-range-details" class="text-[10px] text-gray-500 dark:text-gray-400">min: -- | max: --</p>
@@ -417,7 +424,7 @@
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <!-- Card 1: Total Checado (SEM META) -->
           <div class="kpi-card p-5 relative">
-            <p class="kpi-label">Total Checado</p>
+            <p id="kpi-label-checked" class="kpi-label">Total Checado</p>
             <h3 class="kpi-value" id="kpi-checked">0</h3>
             <p class="kpi-hint" id="kpi-checked-hint">Filtro: Todos</p>
             <!-- META REMOVIDA DAQUI -->
@@ -425,7 +432,7 @@
 
           <!-- Card 2: Saldo Defeito (COM META) -->
           <div class="kpi-card p-5 relative">
-            <p class="kpi-label">Saldo Defeito</p>
+            <p id="kpi-label-defects" class="kpi-label">Saldo Defeito</p>
             <h3 class="kpi-value" style="color: #FFB800;" id="kpi-defects">0</h3>
             
             <!-- Alerta visual se > meta -->
@@ -439,7 +446,7 @@
 
           <!-- Card 3: Reparados (SEM META, mas com %) -->
           <div class="kpi-card p-5">
-            <p class="kpi-label">Reparados</p>
+            <p id="kpi-label-repairs" class="kpi-label">Reparados</p>
             <h3 class="kpi-value" style="color: #00A1E0;" id="kpi-repairs">0</h3>
             <!-- % retrabalho -->
             <p class="text-[9px] text-gray-400 mt-1" id="pct-retrabalho">0% retrabalho</p>
@@ -447,7 +454,7 @@
 
           <!-- Card 4: Scrap (COM META) -->
           <div class="kpi-card p-5 relative">
-            <p class="kpi-label">Scrap</p>
+            <p id="kpi-label-scrap" class="kpi-label">Scrap</p>
             <h3 class="kpi-value" style="color: #EB0A1E;" id="kpi-scrap">0</h3>
             
             <!-- % scrap -->
@@ -467,7 +474,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
           <div class="lg:col-span-1 bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
             <div class="flex items-center justify-between mb-2">
-              <h4 class="font-bold text-sm text-gray-700 dark:text-gray-100">🏆 Top 1 Defeito</h4>
+              <h4 id="top1-title" class="font-bold text-sm text-gray-700 dark:text-gray-100">🏆 Top 1 Defeito</h4>
               <span class="text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full" id="top1-defeito-periodo">hoje</span>
             </div>
             <div id="top1-defeito-content" class="text-center py-2">
@@ -477,8 +484,8 @@
 
           <div class="lg:col-span-3 bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
             <div class="flex items-center justify-between mb-2">
-              <h4 class="font-bold text-sm text-gray-700 dark:text-gray-100">📊 Top 3 PNs Críticos</h4>
-              <span class="text-[10px] text-gray-400">base: Saldo Defeito</span>
+              <h4 id="top3-title" class="font-bold text-sm text-gray-700 dark:text-gray-100">📊 Top 3 PNs Críticos</h4>
+              <span id="top3-base" class="text-[10px] text-gray-400">base: Defeito</span>
             </div>
             <div id="top3-pns-content" class="grid grid-cols-1 md:grid-cols-3 gap-2">
               <div class="text-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
@@ -490,20 +497,20 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div class="lg:col-span-2 bg-white dark:bg-gray-900 p-5 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
-            <div class="chart-title">
+            <div id="pareto-title" class="chart-title">
               <i class="ph-bold ph-chart-bar"></i>
-              Pareto de Defeitos
+              <span id="pareto-title-text">Pareto de Defeitos</span>
             </div>
             <div class="h-60"><canvas id="chartPareto"></canvas></div>
           </div>
 
           <div class="bg-white dark:bg-gray-900 p-5 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
-            <div class="chart-title">
+            <div id="status-title" class="chart-title">
               <i class="ph-bold ph-chart-pie-slice"></i>
-              Status Geral
+              <span id="status-title-text">Status Geral</span>
             </div>
             <div class="h-60 relative"><canvas id="chartStatus"></canvas></div>
-            <p class="mt-2 text-[11px] text-gray-400 text-center">Saldo (checagem) vs Saldo Defeito</p>
+            <p id="status-subtitle" class="mt-2 text-[11px] text-gray-400 text-center">Saldo (checagem) vs Saldo Defeito</p>
           </div>
         </div>
 
@@ -802,7 +809,7 @@
               <li><span class="font-bold">% retrabalho</span> = reparos / checados</li>
               <li><span class="font-bold">% scrap</span> = scrap / checados</li>
               <li><span class="font-bold">Área do reparo</span> com detalhamento por produto</li>
-              <li><span class="font-bold">Gráfico comparativo</span>: Saldo Defeito vs Scrap (mensal/anual)</li>
+              <li><span class="font-bold">Gráfico comparativo</span>: Saldo Defeito e Scrap (mensal/anual)</li>
             </ul>
           </div>
         </div>
